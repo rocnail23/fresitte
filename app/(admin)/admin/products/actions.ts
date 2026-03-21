@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
@@ -34,6 +35,11 @@ const slugify = (value: string) =>
     .trim()
     .replace(/\s+/g, "-");
 
+function redirectWithFeedback(status: "success" | "error", message: string): never {
+  const params = new URLSearchParams({ status, message });
+  redirect(`/admin/products?${params.toString()}`);
+}
+
 export async function createProductAction(formData: FormData) {
   await requireAdmin();
 
@@ -45,7 +51,7 @@ export async function createProductAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error("Datos inválidos. Revisa los campos obligatorios.");
+    redirectWithFeedback("error", "Datos inválidos. Revisa los campos obligatorios.");
   }
 
   const values = parsed.data;
@@ -60,7 +66,7 @@ export async function createProductAction(formData: FormData) {
       imageUrl = uploadResult?.url ?? null;
     } catch (error) {
       console.error("uploadImageToR2:product", error);
-      throw new Error("No pudimos subir la imagen del producto. Intenta de nuevo.");
+      redirectWithFeedback("error", "No pudimos subir la imagen del producto. Intenta de nuevo.");
     }
   }
 
@@ -82,10 +88,11 @@ export async function createProductAction(formData: FormData) {
     });
   } catch (error) {
     console.error("createProductAction", error);
-    throw new Error("No pudimos crear el producto. Revisa que el nombre no esté duplicado.");
+    redirectWithFeedback("error", "No pudimos crear el producto. Revisa que el nombre no esté duplicado.");
   }
 
   revalidatePath("/admin/products");
+  redirectWithFeedback("success", "Producto creado correctamente");
 }
 
 export async function updateProductAction(formData: FormData) {
@@ -99,13 +106,13 @@ export async function updateProductAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error("Datos inválidos. Revisa el formulario de edición");
+    redirectWithFeedback("error", "Datos inválidos. Revisa el formulario de edición");
   }
 
   const values = parsed.data;
   const existing = await db.query.products.findFirst({ where: eq(products.id, values.id) });
   if (!existing) {
-    throw new Error("Producto no encontrado");
+    redirectWithFeedback("error", "Producto no encontrado");
   }
 
   const slug = slugify(values.name);
@@ -119,7 +126,7 @@ export async function updateProductAction(formData: FormData) {
       imageUrl = uploadResult?.url ?? imageUrl;
     } catch (error) {
       console.error("uploadImageToR2:product:update", error);
-      throw new Error("No pudimos subir la imagen del producto. Intenta de nuevo.");
+      redirectWithFeedback("error", "No pudimos subir la imagen del producto. Intenta de nuevo.");
     }
   }
 
@@ -143,10 +150,11 @@ export async function updateProductAction(formData: FormData) {
       .where(eq(products.id, values.id));
   } catch (error) {
     console.error("updateProductAction", error);
-    throw new Error("No pudimos actualizar el producto");
+    redirectWithFeedback("error", "No pudimos actualizar el producto");
   }
 
   revalidatePath("/admin/products");
+  redirectWithFeedback("success", "Producto actualizado");
 }
 
 export async function deleteProductAction(formData: FormData) {
@@ -154,17 +162,18 @@ export async function deleteProductAction(formData: FormData) {
 
   const id = Number(formData.get("id"));
   if (!id) {
-    throw new Error("Producto inválido");
+    redirectWithFeedback("error", "Producto inválido");
   }
 
   try {
     await db.delete(products).where(eq(products.id, id));
   } catch (error) {
     console.error("deleteProductAction", error);
-    throw new Error("No pudimos eliminar el producto");
+    redirectWithFeedback("error", "No pudimos eliminar el producto");
   }
 
   revalidatePath("/admin/products");
+  redirectWithFeedback("success", "Producto eliminado");
 }
 
 function extractImageUrl(metadata: string) {

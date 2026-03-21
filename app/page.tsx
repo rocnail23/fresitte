@@ -82,7 +82,7 @@ export default async function Home({
   const sizeOptions = buildSizeFilters(catalogProducts);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-2 md:px-4 py-10 sm:px-6">
       <CatalogGrid
         products={catalogProducts}
         categories={categoryFilters}

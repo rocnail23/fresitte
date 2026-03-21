@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
@@ -30,12 +31,17 @@ const slugify = (value: string) =>
     .trim()
     .replace(/\s+/g, "-");
 
+function redirectWithFeedback(status: "success" | "error", message: string): never {
+  const params = new URLSearchParams({ status, message });
+  redirect(`/admin/categories?${params.toString()}`);
+}
+
 export async function createCategoryAction(formData: FormData) {
   await requireAdmin();
 
   const parsed = createCategorySchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    throw new Error("Datos inválidos. Revisa nombre, color y URL");
+    redirectWithFeedback("error", "Datos inválidos. Revisa nombre, color y URL");
   }
 
   const values = parsed.data;
@@ -49,7 +55,7 @@ export async function createCategoryAction(formData: FormData) {
       coverImageUrl = uploadResult?.url ?? null;
     } catch (error) {
       console.error("uploadImageToR2:category", error);
-      throw new Error("No pudimos subir la portada. Intenta de nuevo.");
+      redirectWithFeedback("error", "No pudimos subir la portada. Intenta de nuevo.");
     }
   }
 
@@ -64,10 +70,11 @@ export async function createCategoryAction(formData: FormData) {
     });
   } catch (error) {
     console.error("createCategoryAction", error);
-    throw new Error("No pudimos crear la categoría. Revisa que el slug sea único.");
+    redirectWithFeedback("error", "No pudimos crear la categoría. Revisa que el slug sea único.");
   }
 
   revalidatePath("/admin/categories");
+  redirectWithFeedback("success", "Categoría creada correctamente");
 }
 
 export async function updateCategoryAction(formData: FormData) {
@@ -75,13 +82,13 @@ export async function updateCategoryAction(formData: FormData) {
 
   const parsed = updateCategorySchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    throw new Error("Datos inválidos. Revisa el formulario de edición");
+    redirectWithFeedback("error", "Datos inválidos. Revisa el formulario de edición");
   }
 
   const values = parsed.data;
   const existing = await db.query.categories.findFirst({ where: eq(categories.id, values.id) });
   if (!existing) {
-    throw new Error("Categoría no encontrada");
+    redirectWithFeedback("error", "Categoría no encontrada");
   }
 
   const slug = values.slug?.trim() ? slugify(values.slug) : slugify(values.name);
@@ -94,7 +101,7 @@ export async function updateCategoryAction(formData: FormData) {
       coverImageUrl = uploadResult?.url ?? coverImageUrl;
     } catch (error) {
       console.error("uploadImageToR2:category:update", error);
-      throw new Error("No pudimos subir la portada. Intenta de nuevo.");
+      redirectWithFeedback("error", "No pudimos subir la portada. Intenta de nuevo.");
     }
   }
 
@@ -112,10 +119,11 @@ export async function updateCategoryAction(formData: FormData) {
       .where(eq(categories.id, values.id));
   } catch (error) {
     console.error("updateCategoryAction", error);
-    throw new Error("No pudimos actualizar la categoría");
+    redirectWithFeedback("error", "No pudimos actualizar la categoría.");
   }
 
   revalidatePath("/admin/categories");
+  redirectWithFeedback("success", "Categoría actualizada");
 }
 
 export async function deleteCategoryAction(formData: FormData) {
@@ -123,15 +131,16 @@ export async function deleteCategoryAction(formData: FormData) {
 
   const id = Number(formData.get("id"));
   if (!id) {
-    throw new Error("Categoría inválida");
+    redirectWithFeedback("error", "Categoría inválida");
   }
 
   try {
     await db.delete(categories).where(eq(categories.id, id));
   } catch (error) {
     console.error("deleteCategoryAction", error);
-    throw new Error("No pudimos eliminar la categoría");
+    redirectWithFeedback("error", "No pudimos eliminar la categoría");
   }
 
   revalidatePath("/admin/categories");
+  redirectWithFeedback("success", "Categoría eliminada");
 }

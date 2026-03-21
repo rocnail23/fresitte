@@ -279,7 +279,7 @@ export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber,
         </Sheet>
       ) : null}
 
-      <section className="rounded-[40px] border border-white/70 bg-white/90 p-6 shadow-2xl shadow-primary/10">
+      <section className="rounded-[40px] border border-white/70 bg-white/90 p-4 md:p-6 shadow-2xl shadow-primary/10">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-muted pb-4">
           <p className="text-sm text-muted-foreground">
             {filteredProducts.length} estilos

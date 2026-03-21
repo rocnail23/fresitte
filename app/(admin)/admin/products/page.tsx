@@ -11,7 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { createProductAction, deleteProductAction, updateProductAction } from "./actions";
 
-export default async function AdminProductsPage() {
+type ProductSearchParams = {
+  status?: string;
+  message?: string;
+};
+
+export default async function AdminProductsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<ProductSearchParams>;
+}) {
+  const resolvedParams = (await searchParams) ?? {};
+  const feedbackStatus = resolvedParams.status === "success" || resolvedParams.status === "error" ? resolvedParams.status : null;
+  const feedbackMessage = resolvedParams.message;
   const [categoryList, productList] = await Promise.all([
     db.select().from(categories).orderBy(categories.displayOrder, categories.name),
     db.query.products.findMany({
@@ -22,6 +34,17 @@ export default async function AdminProductsPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {feedbackStatus && feedbackMessage ? (
+        <div
+          className={`flex items-center justify-between gap-4 rounded-3xl border px-4 py-3 text-sm ${feedbackStatus === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-destructive/30 bg-destructive/10 text-destructive"}`}
+        >
+          <p>{feedbackMessage}</p>
+          <a href="/admin/products" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Cerrar
+          </a>
+        </div>
+      ) : null}
+
       <section className="rounded-3xl border border-white/70 bg-white/95 p-6 shadow-sm">
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Nuevo</p>
