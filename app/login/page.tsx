@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Lock, Mail } from "lucide-react";
@@ -9,7 +9,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+function LoadingCard() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4 py-10">
+      <Card className="w-full max-w-md rounded-[32px] border border-white/70 bg-white/90 p-8 text-center shadow-2xl shadow-primary/20">
+        <p className="text-sm text-muted-foreground">Cargando…</p>
+      </Card>
+    </main>
+  );
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingCard />}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get("callbackUrl") ?? "/admin";
@@ -88,7 +106,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-full bg-primary py-6 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/40"
+              className="w-full rounded-full mt-4 bg-primary py-6 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/40"
             >
               {submitting ? "Validando…" : "Ingresar"}
             </Button>
