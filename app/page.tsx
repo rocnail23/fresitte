@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt, like, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { categories, products } from "@/db/schema";
@@ -23,32 +23,76 @@ const FALLBACK_SIZES = [
 
 const PAGE_SIZE = 9;
 
+type StorefrontSearchParams = {
+  page?: string;
+  category?: string;
+  size?: string;
+  search?: string;
+};
+
 export default async function Home({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<StorefrontSearchParams>;
 }) {
   const resolvedParams = (await searchParams) ?? {};
   const requestedPage = Math.max(1, Number(resolvedParams.page ?? "1") || 1);
+  const requestedCategory = resolvedParams.category?.trim() ?? "";
+  const requestedSize = resolvedParams.size?.trim() ?? "";
+  const searchQuery = resolvedParams.search?.trim() ?? "";
+
   const baseWhere = and(eq(products.isVisible, true), gt(products.stock, 0));
 
-  const [categoryRows, totalResult] = await Promise.all([
-    db.select().from(categories).orderBy(categories.displayOrder, categories.name),
-    db.select({ value: count() }).from(products).where(baseWhere),
-  ]);
+  const categoryRows = await db.select().from(categories).orderBy(categories.displayOrder, categories.name);
+  const matchedCategory = requestedCategory
+    ? categoryRows.find((category) => category.slug === requestedCategory)
+    : null;
 
-  const totalProducts = totalResult?.[0]?.value ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const offset = (currentPage - 1) * PAGE_SIZE;
+  const invalidCategoryFilter = Boolean(requestedCategory) && !matchedCategory;
 
-  const productRows = await db.query.products.findMany({
-    with: { category: true },
-    where: baseWhere,
-    orderBy: desc(products.createdAt),
-    limit: PAGE_SIZE,
-    offset,
-  });
+  let totalProducts = 0;
+  let productRows: (typeof products.$inferSelect & { category: { name: string; slug: string } | null })[] = [];
+  let totalPages = 1;
+  let currentPage = 1;
+
+  if (!invalidCategoryFilter) {
+    const whereClauses = [baseWhere];
+
+    if (matchedCategory) {
+      whereClauses.push(eq(products.categoryId, matchedCategory.id));
+    }
+
+    if (requestedSize) {
+      whereClauses.push(like(products.sizes, `%${requestedSize}%`));
+    }
+
+    if (searchQuery) {
+      const pattern = `%${searchQuery}%`;
+      whereClauses.push(
+        or(
+          like(products.name, pattern),
+          like(products.summary, pattern),
+          like(products.description, pattern),
+        ),
+      );
+    }
+
+    const whereExpression = whereClauses.slice(1).reduce((acc, clause) => and(acc, clause), whereClauses[0]);
+
+    const totalResult = await db.select({ value: count() }).from(products).where(whereExpression);
+    totalProducts = totalResult?.[0]?.value ?? 0;
+    totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
+    currentPage = Math.min(requestedPage, totalPages);
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
+    productRows = await db.query.products.findMany({
+      with: { category: true },
+      where: whereExpression,
+      orderBy: desc(products.createdAt),
+      limit: PAGE_SIZE,
+      offset,
+    });
+  }
 
   const catalogProducts: CatalogProduct[] = productRows.map((product) => {
     const metadata = product.metadata ? safeJson(product.metadata) : null;
@@ -88,6 +132,9 @@ export default async function Home({
         categories={categoryFilters}
         sizeOptions={sizeOptions}
         pagination={{ currentPage, totalPages, pageSize: PAGE_SIZE, totalItems: totalProducts }}
+        selectedCategory={requestedCategory}
+        selectedSize={requestedSize}
+        searchTerm={searchQuery}
         whatsappNumber={env.WHATSAPP_NUMBER}
       />
     </main>

@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ShoppingBag } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { ProductCard, type CatalogProduct } from "@/components/catalog/product-card";
 import { ProductFilters, type FilterOption } from "@/components/catalog/product-filters";
@@ -29,6 +30,9 @@ interface CatalogGridProps {
     pageSize: number;
     totalItems: number;
   };
+  selectedCategory?: string;
+  selectedSize?: string;
+  searchTerm?: string;
 }
 
 interface CartItem {
@@ -41,33 +45,35 @@ interface CartItem {
   stock: number;
 }
 
-export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber, pagination }: CatalogGridProps) {
-  const [category, setCategory] = useState("");
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
+export function CatalogGrid({
+  products,
+  categories,
+  sizeOptions,
+  whatsappNumber,
+  pagination,
+  selectedCategory = "",
+  selectedSize = "",
+  searchTerm = "",
+}: CatalogGridProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setCartOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const selectedSizes = selectedSize ? [selectedSize] : [];
+  const [pendingSearch, setPendingSearch] = useState(searchTerm);
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => setIsClient(true));
     return () => window.cancelAnimationFrame(raf);
   }, []);
+  useEffect(() => {
+    setPendingSearch(searchTerm);
+  }, [searchTerm]);
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const categoryValue = product.categoryValue ?? product.category;
-      const matchesCategory = category ? categoryValue === category : true;
-      const matchesSizes = sizes.length
-        ? sizes.every((size) => product.sizes.includes(size))
-        : true;
-      const matchesSearch = search
-        ? product.name.toLowerCase().includes(search.toLowerCase()) ||
-          product.description.toLowerCase().includes(search.toLowerCase())
-        : true;
-      return matchesCategory && matchesSizes && matchesSearch;
-    });
-  }, [category, products, search, sizes]);
+  const filteredProducts = products;
 
   const productMap = useMemo(() => {
     const map = new Map<string, CatalogProduct>();
@@ -150,18 +156,61 @@ export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber,
     handleAddToCart(product);
   };
 
+  const buildPageHref = (page: number) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (page <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(page));
+    }
+    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+    return nextUrl;
+  };
+
   return (
     <>
       <ProductFilters
         categories={categories}
         sizes={sizeOptions}
-        selectedCategory={category}
-        selectedSizes={sizes}
-        search={search}
+        selectedCategory={selectedCategory}
+        selectedSizes={selectedSizes}
+        search={pendingSearch}
         onUpdate={({ category: nextCategory, sizes: nextSizes, search: nextSearch }) => {
-          if (typeof nextCategory === "string") setCategory(nextCategory);
-          if (Array.isArray(nextSizes)) setSizes(nextSizes);
-          if (typeof nextSearch === "string") setSearch(nextSearch);
+          const params = new URLSearchParams(searchParams?.toString() ?? "");
+
+          if (typeof nextCategory === "string") {
+            if (nextCategory) {
+              params.set("category", nextCategory);
+            } else {
+              params.delete("category");
+            }
+          }
+
+          if (Array.isArray(nextSizes)) {
+            const nextSize = nextSizes[0];
+            if (nextSize) {
+              params.set("size", nextSize);
+            } else {
+              params.delete("size");
+            }
+          }
+
+          if (typeof nextSearch === "string") {
+            setPendingSearch(nextSearch);
+            const trimmed = nextSearch.trim();
+            if (trimmed) {
+              params.set("search", trimmed);
+            } else {
+              params.delete("search");
+            }
+          }
+
+          params.delete("page");
+
+          const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+          startTransition(() => {
+            router.push(nextUrl, { scroll: true });
+          });
         }}
       />
 
@@ -283,15 +332,22 @@ export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber,
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-muted pb-4">
           <p className="text-sm text-muted-foreground">
             {filteredProducts.length} estilos
-            {search ? ` para "${search}"` : " disponibles"}
+            {searchTerm ? ` para "${searchTerm}"` : " disponibles"}
           </p>
           <button
             type="button"
             className="text-sm font-semibold text-primary"
             onClick={() => {
-              setCategory("");
-              setSizes([]);
-              setSearch("");
+              const params = new URLSearchParams(searchParams?.toString() ?? "");
+              params.delete("category");
+              params.delete("size");
+              params.delete("search");
+              params.delete("page");
+              setPendingSearch("");
+              const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+              startTransition(() => {
+                router.push(nextUrl, { scroll: true });
+              });
             }}
           >
             Limpiar filtros
@@ -323,7 +379,7 @@ export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber,
                 disabled={pagination.currentPage <= 1}
                 className="rounded-full"
               >
-                <Link href={`/?page=${Math.max(1, pagination.currentPage - 1)}`} scroll>
+                <Link href={buildPageHref(Math.max(1, pagination.currentPage - 1))} scroll>
                   Anterior
                 </Link>
               </Button>
@@ -333,7 +389,7 @@ export function CatalogGrid({ products, categories, sizeOptions, whatsappNumber,
                 disabled={pagination.currentPage >= pagination.totalPages}
                 className="rounded-full"
               >
-                <Link href={`/?page=${Math.min(pagination.totalPages, pagination.currentPage + 1)}`} scroll>
+                <Link href={buildPageHref(Math.min(pagination.totalPages, pagination.currentPage + 1))} scroll>
                   Siguiente
                 </Link>
               </Button>
