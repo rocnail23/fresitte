@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1774023483691,
+      "tag": "0000_overrated_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774024267173,
+      "tag": "0001_old_zodiak",
+      "breakpoints": true
+    }
+  ]
+}

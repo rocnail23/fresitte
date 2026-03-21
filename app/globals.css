@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-fresitte-sans);
+  --font-mono: var(--font-fresitte-mono);
+  --font-heading: var(--font-fresitte-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,72 +49,84 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --fresitte-coral: #ff6464;
+  --fresitte-coral-strong: #ff4e4e;
+  --fresitte-cream: #fff3e1;
+  --fresitte-cream-strong: #ffe6cb;
+  --fresitte-leaf: #9ee04b;
+  --fresitte-leaf-dark: #6fb022;
+  --fresitte-cocoa: #5c3d2e;
+  --fresitte-mauve: #ffc1d8;
+  --fresitte-sky: #f1f5ff;
+  --font-sans: var(--font-fresitte-sans);
+  --font-heading: var(--font-fresitte-display);
+  --font-mono: var(--font-fresitte-mono);
+  --background: var(--fresitte-cream);
+  --foreground: var(--fresitte-cocoa);
+  --card: #fffaf4;
+  --card-foreground: var(--fresitte-cocoa);
+  --popover: #fffdf8;
+  --popover-foreground: var(--fresitte-cocoa);
+  --primary: var(--fresitte-coral);
+  --primary-foreground: #fffdf8;
+  --secondary: rgba(255, 100, 100, 0.1);
+  --secondary-foreground: var(--fresitte-coral-strong);
+  --muted: rgba(255, 243, 225, 0.65);
+  --muted-foreground: color-mix(in oklab, var(--fresitte-cocoa) 60%, white);
+  --accent: rgba(158, 224, 75, 0.15);
+  --accent-foreground: var(--fresitte-leaf-dark);
+  --destructive: #ff4d6d;
+  --border: rgba(92, 61, 46, 0.1);
+  --input: rgba(92, 61, 46, 0.1);
+  --ring: rgba(255, 100, 100, 0.45);
+  --chart-1: var(--fresitte-coral);
+  --chart-2: var(--fresitte-leaf);
+  --chart-3: #ff9c73;
+  --chart-4: #ffce7a;
+  --chart-5: #ffc1d8;
+  --radius: 0.875rem;
+  --sidebar: linear-gradient(180deg, #fffaf4 0%, #ffe6cb 100%);
+  --sidebar-foreground: var(--fresitte-cocoa);
+  --sidebar-primary: var(--fresitte-coral);
+  --sidebar-primary-foreground: #fffaf4;
+  --sidebar-accent: rgba(255, 100, 100, 0.08);
+  --sidebar-accent-foreground: var(--fresitte-coral-strong);
+  --sidebar-border: rgba(92, 61, 46, 0.12);
+  --sidebar-ring: rgba(255, 100, 100, 0.35);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #1a120c;
+  --foreground: #fdfaf5;
+  --card: #221711;
+  --card-foreground: #fffaf4;
+  --popover: #241912;
+  --popover-foreground: #fffaf4;
+  --primary: var(--fresitte-leaf);
+  --primary-foreground: #1a120c;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #ffe6cb;
+  --muted: rgba(255, 255, 255, 0.1);
+  --muted-foreground: rgba(255, 255, 255, 0.64);
+  --accent: rgba(255, 100, 100, 0.2);
+  --accent-foreground: #ffe6cb;
+  --destructive: #ff89a4;
+  --border: rgba(255, 255, 255, 0.15);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(158, 224, 75, 0.45);
+  --chart-1: var(--fresitte-leaf);
+  --chart-2: #ff9c73;
+  --chart-3: #ffc1d8;
+  --chart-4: #ffce7a;
+  --chart-5: var(--fresitte-coral);
+  --sidebar: linear-gradient(180deg, #1a120c 0%, #311f16 100%);
+  --sidebar-foreground: #fffaf4;
+  --sidebar-primary: var(--fresitte-leaf);
+  --sidebar-primary-foreground: #20140f;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffe6cb;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(158, 224, 75, 0.3);
 }
 
 @layer base {
@@ -123,8 +135,20 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.8) 0, transparent 45%),
+      radial-gradient(circle at 80% 0%, rgba(255, 178, 178, 0.35) 0, transparent 40%),
+      radial-gradient(circle at 50% 80%, rgba(158, 224, 75, 0.15) 0, transparent 40%),
+      linear-gradient(135deg, var(--fresitte-cream), var(--fresitte-cream-strong));
+    min-height: 100vh;
+    font-feature-settings: "liga" 1;
   }
   html {
     @apply font-sans;
+    background-color: var(--background);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 80%, white);
+    color: var(--primary-foreground);
   }
 }
