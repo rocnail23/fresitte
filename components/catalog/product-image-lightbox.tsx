@@ -47,7 +47,9 @@ export function ProductImageLightbox() {
   // always the "closed" state, then the next paint flips to "open" and the
   // CSS transition runs.
   const [phase, setPhase] = useState<"closed" | "open">("closed");
-  const closeTimerRef = useRef<number | null>(null);
+  // Bumped each time we open so the close effect can invalidate its own
+  // pending unmount without sharing a timer handle across effects.
+  const [openToken, setOpenToken] = useState(0);
   const rafRef = useRef<number | null>(null);
 
   const isOpen = state.open && state.images.length > 0;
@@ -58,9 +60,7 @@ export function ProductImageLightbox() {
       const custom = event as CustomEvent<OpenLightboxDetail>;
       const detail = custom.detail;
       if (!detail || !detail.images.length) return;
-      if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      closeTimerRef.current = null;
       setState({
         open: true,
         images: detail.images,
@@ -69,6 +69,7 @@ export function ProductImageLightbox() {
         index: 0,
       });
       setMounted(true);
+      setOpenToken((token) => token + 1);
       // Force the first paint to be the closed state, then queue the open
       // state on the next frame so the browser applies the CSS transition.
       setPhase("closed");
@@ -87,17 +88,16 @@ export function ProductImageLightbox() {
   }, []);
 
   // Schedule an unmount after the close fade so we keep the DOM for the
-  // transition. Closes are kicked off from `setPhase("closed")` + `open:false`
-  // in the same handler that drives the close action.
+  // transition. Re-running this effect cancels any pending close timer; the
+  // dependency on `openToken` lets a fresh open invalidate the previous close.
   useEffect(() => {
     if (isOpen || !mounted) return;
     const handle = setTimeout(() => {
       setMounted(false);
       setState(INITIAL_STATE);
     }, FADE_OUT_MS);
-    closeTimerRef.current = handle;
     return () => clearTimeout(handle);
-  }, [isOpen, mounted]);
+  }, [isOpen, mounted, openToken]);
 
   // Lock body scroll while the overlay is visible (mounted && open or fading).
   useEffect(() => {
