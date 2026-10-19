@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Search, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -38,106 +39,378 @@ export interface ProductFiltersProps {
 
 export type FilterSheetProps = ProductFiltersProps;
 
-function FilterPanel({
+function CategoryChip({ category, isActive, onUpdate }: {
+  category: FilterOption;
+  isActive: boolean;
+  onUpdate: (category: string) => void;
+}) {
+  return (
+    <button
+      key={category.value}
+      type="button"
+      aria-pressed={isActive}
+      onClick={() => onUpdate(category.value)}
+      className={cn(
+        "shrink-0 snap-start min-h-[28px] rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+      )}
+    >
+      <Badge
+        variant={isActive ? "default" : "outline"}
+        className={cn("rounded-full px-2.5 py-0.5 text-xs", {
+          "bg-primary text-primary-foreground": isActive,
+        })}
+        style={
+          isActive && category.color
+            ? { backgroundColor: category.color, color: "#1a120c" }
+            : undefined
+        }
+      >
+        {category.label}
+      </Badge>
+    </button>
+  );
+}
+
+function SizeChip({ size, isActive, onToggle }: {
+  size: FilterOption;
+  isActive: boolean;
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <button
+      key={size.value}
+      type="button"
+      aria-pressed={isActive}
+      onClick={() => onToggle(size.value)}
+      className={cn(
+        "shrink-0 snap-start min-h-[28px] rounded-full border px-2.5 py-0.5 text-xs font-semibold transition",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        isActive
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-muted bg-white/80 text-foreground hover:border-primary/20",
+      )}
+    >
+      {size.label}
+    </button>
+  );
+}
+
+function CategoryRow({ categories, selectedCategory, onUpdate }: {
+  categories: FilterOption[];
+  selectedCategory: string;
+  onUpdate: (category: string) => void;
+}) {
+  return (
+    <div className="flex flex-1 min-w-0 gap-1.5 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <button
+        type="button"
+        aria-pressed={!selectedCategory}
+        onClick={() => onUpdate("")}
+        className={cn(
+          "shrink-0 snap-start min-h-[28px] rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        )}
+      >
+        <Badge
+          variant={!selectedCategory ? "default" : "outline"}
+          className={cn("rounded-full px-2.5 py-0.5 text-xs", {
+            "bg-primary text-primary-foreground": !selectedCategory,
+          })}
+        >
+          Todas
+        </Badge>
+      </button>
+      {categories.map((category) => (
+        <CategoryChip
+          key={category.value}
+          category={category}
+          isActive={selectedCategory === category.value}
+          onUpdate={onUpdate}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SizeRow({ sizes, selectedSizes, onToggle }: {
+  sizes: FilterOption[];
+  selectedSizes: string[];
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-1 min-w-0 gap-1.5 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {sizes.map((size) => (
+        <SizeChip
+          key={size.value}
+          size={size}
+          isActive={selectedSizes.includes(size.value)}
+          onToggle={onToggle}
+        />
+      ))}
+    </div>
+  );
+}
+
+export interface FilterSearchBarProps {
+  search: string;
+  onUpdate: (next: string) => void;
+}
+
+export function FilterSearchBar({ search, onUpdate }: FilterSearchBarProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <div className="relative shrink-0 sm:flex-1 sm:max-w-xs">
+      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        ref={inputRef}
+        type="search"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
+        placeholder="Buscar producto..."
+        value={search}
+        onChange={(event) => onUpdate(event.target.value)}
+        aria-label="Buscar producto"
+        className="rounded-full border-primary/20 bg-white/95 pl-10 pr-10 h-10"
+      />
+      {search ? (
+        <button
+          type="button"
+          aria-label="Limpiar búsqueda"
+          onClick={() => {
+            onUpdate("");
+            inputRef.current?.focus();
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/70"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+export interface InlineFiltersProps {
+  categories: FilterOption[];
+  sizes: FilterOption[];
+  selectedCategory: string;
+  selectedSizes: string[];
+  search: string;
+  previewCount?: number;
+  onUpdate: (filters: {
+    category?: string;
+    sizes?: string[];
+    search?: string;
+  }) => void;
+}
+
+export function InlineFilters({
   categories,
   sizes,
   selectedCategory,
   selectedSizes,
   search,
+  previewCount = 3,
   onUpdate,
-}: ProductFiltersProps) {
+}: InlineFiltersProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+
   const handleToggleSize = (value: string) => {
     const isSelected = selectedSizes[0] === value;
-    const next = isSelected ? [] : [value];
-    onUpdate({ sizes: next });
+    onUpdate({ sizes: isSelected ? [] : [value] });
   };
 
+  const previewCategories = categories.slice(0, previewCount);
+  const previewSizes = sizes.slice(0, previewCount);
+  const hasOverflow =
+    categories.length > previewCount || sizes.length > previewCount;
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-muted-foreground">Buscar producto</p>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Body fresa, conjunto, talla..."
-            value={search}
-            onChange={(event) => onUpdate({ search: event.target.value })}
-            className="rounded-full border-primary/20 bg-white/80 pl-10 pr-10 h-11"
-          />
-          {search ? (
-            <button
-              type="button"
-              aria-label="Limpiar búsqueda"
-              onClick={() => onUpdate({ search: "" })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/70"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+    <>
+      <div className="flex flex-col gap-2.5">
+        <FilterSearchBar
+          search={search}
+          onUpdate={(value) => onUpdate({ search: value })}
+        />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Cat.
+            </span>
+            <div className="min-w-0 flex-1">
+              <CategoryRow
+                categories={previewCategories}
+                selectedCategory={selectedCategory}
+                onUpdate={(category) => onUpdate({ category })}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Talla
+            </span>
+            <div className="min-w-0 flex-1">
+              <SizeRow
+                sizes={previewSizes}
+                selectedSizes={selectedSizes}
+                onToggle={handleToggleSize}
+              />
+            </div>
+          </div>
+          {hasOverflow ? (
+            <div className="flex justify-start">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setMoreOpen(true)}
+                className="h-7 shrink-0 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Más categorías y tallas
+              </Button>
+            </div>
           ) : null}
         </div>
       </div>
 
-      <div className="space-y-3">
-        <p className="text-sm font-semibold text-muted-foreground">Categoría</p>
-        <div className="flex gap-2 overflow-x-auto pb-2 snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap">
-          {categories.map((category) => {
-            const isActive = selectedCategory === category.value;
-            return (
-              <button
-                key={category.value}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => onUpdate({ category: category.value })}
-                className={cn(
-                  "shrink-0 snap-start min-h-[40px] rounded-full px-4 py-2 text-sm font-medium transition",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                )}
-              >
-                <Badge
-                  variant={isActive ? "default" : "outline"}
-                  className={cn("rounded-full px-3.5 py-1.5 text-sm", {
-                    "bg-primary text-primary-foreground": isActive,
-                  })}
-                  style={
-                    isActive && category.color
-                      ? { backgroundColor: category.color, color: "#1a120c" }
-                      : undefined
-                  }
-                >
-                  {category.label}
-                </Badge>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <MoreFiltersSheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        categories={categories}
+        sizes={sizes}
+        selectedCategory={selectedCategory}
+        selectedSizes={selectedSizes}
+        onUpdate={onUpdate}
+      />
+    </>
+  );
+}
 
-      <div className="space-y-3">
+function MoreFiltersSheetContent({
+  categories,
+  sizes,
+  selectedCategory,
+  selectedSizes,
+  onUpdate,
+}: Pick<
+  ProductFiltersProps,
+  "categories" | "sizes" | "selectedCategory" | "selectedSizes" | "onUpdate"
+>) {
+  const handleToggleSize = (value: string) => {
+    const isSelected = selectedSizes[0] === value;
+    onUpdate({ sizes: isSelected ? [] : [value] });
+  };
+
+  return (
+    <div className="flex flex-col gap-6 pt-4 safe-bottom">
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-muted-foreground">Categoría</p>
+        <CategoryRow
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onUpdate={(category) => onUpdate({ category })}
+        />
+      </div>
+      <div className="space-y-2">
         <p className="text-sm font-semibold text-muted-foreground">Tallas</p>
-        <div className="flex gap-2 overflow-x-auto pb-2 snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap">
-          {sizes.map((size) => {
-            const isActive = selectedSizes.includes(size.value);
-            return (
-              <button
-                key={size.value}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => handleToggleSize(size.value)}
-                className={cn(
-                  "shrink-0 snap-start min-h-[40px] rounded-full border px-4 py-2 text-sm font-semibold transition",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                  isActive
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-muted bg-white/80 text-foreground hover:border-primary/20",
-                )}
-              >
-                {size.label}
-              </button>
-            );
-          })}
-        </div>
+        <SizeRow
+          sizes={sizes}
+          selectedSizes={selectedSizes}
+          onToggle={handleToggleSize}
+        />
       </div>
     </div>
+  );
+}
+
+function MoreFiltersSheet({
+  open,
+  onOpenChange,
+  categories,
+  sizes,
+  selectedCategory,
+  selectedSizes,
+  onUpdate,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: FilterOption[];
+  sizes: FilterOption[];
+  selectedCategory: string;
+  selectedSizes: string[];
+  onUpdate: (filters: { category?: string; sizes?: string[] }) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [maxHeight, setMaxHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const compute = () => {
+      const offsetTop = viewport.offsetTop;
+      const viewportHeight = viewport.height;
+      const keyboardOpen = viewportHeight < window.innerHeight * 0.75;
+      if (!keyboardOpen) {
+        setMaxHeight(null);
+        return;
+      }
+      const remaining = Math.max(0, offsetTop + viewportHeight);
+      setMaxHeight(Math.round(remaining));
+    };
+
+    compute();
+    viewport.addEventListener("resize", compute);
+    viewport.addEventListener("scroll", compute);
+    window.addEventListener("resize", compute);
+    return () => {
+      viewport.removeEventListener("resize", compute);
+      viewport.removeEventListener("scroll", compute);
+      window.removeEventListener("resize", compute);
+    };
+  }, []);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        showCloseButton
+        className="rounded-t-3xl px-5 pb-6 max-h-[85vh] overflow-hidden safe-bottom"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+        }}
+      >
+        <div
+          ref={containerRef}
+          style={
+            maxHeight
+              ? { maxHeight: `${maxHeight}px`, height: `${maxHeight}px` }
+              : undefined
+          }
+          className="flex flex-col"
+        >
+          <SheetHeader className="border-b border-muted/60 pb-3">
+            <SheetTitle>Todas las opciones</SheetTitle>
+            <SheetDescription>
+              Explora todas las categorías y tallas
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto">
+            <MoreFiltersSheetContent
+              categories={categories}
+              sizes={sizes}
+              selectedCategory={selectedCategory}
+              selectedSizes={selectedSizes}
+              onUpdate={onUpdate}
+            />
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -148,9 +421,6 @@ export function ProductFilters({
   selectedSizes,
   search,
   onUpdate,
-  isOpen,
-  onOpenChange,
-  totalResults,
 }: ProductFiltersProps) {
   const selectedCategoryLabel = useMemo(() => {
     if (!selectedCategory) return "Todas";
@@ -172,34 +442,7 @@ export function ProductFilters({
   }, []);
 
   if (!isDesktop) {
-    return (
-      <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="bottom"
-          showCloseButton
-          className="rounded-t-3xl px-5 pb-6 max-h-[85vh] overflow-y-auto safe-bottom"
-        >
-          <SheetHeader className="border-b border-muted/60 pb-3">
-            <SheetTitle>Filtros</SheetTitle>
-            <SheetDescription>
-              {typeof totalResults === "number"
-                ? `${totalResults} estilos disponibles`
-                : "Encuentra tu estilo ideal"}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="pt-4">
-            <FilterPanel
-              categories={categories}
-              sizes={sizes}
-              selectedCategory={selectedCategory}
-              selectedSizes={selectedSizes}
-              search={search}
-              onUpdate={onUpdate}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
-    );
+    return null;
   }
 
   return (
@@ -214,47 +457,29 @@ export function ProductFilters({
           </h1>
         </div>
       </div>
-      <FilterPanel
-        categories={categories}
-        sizes={sizes}
-        selectedCategory={selectedCategory}
-        selectedSizes={selectedSizes}
+      <FilterSearchBar
         search={search}
-        onUpdate={onUpdate}
+        onUpdate={(value) => onUpdate({ search: value })}
       />
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-muted-foreground">Categoría</p>
+        <CategoryRow
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onUpdate={(category) => onUpdate({ category })}
+        />
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-muted-foreground">Tallas</p>
+        <SizeRow
+          sizes={sizes}
+          selectedSizes={selectedSizes}
+          onToggle={(value) => {
+            const isSelected = selectedSizes[0] === value;
+            onUpdate({ sizes: isSelected ? [] : [value] });
+          }}
+        />
+      </div>
     </div>
-  );
-}
-
-export function FilterSheet(props: FilterSheetProps) {
-  const { categories, sizes, selectedCategory, selectedSizes, search, onUpdate } = props;
-
-  return (
-    <Sheet open={props.isOpen} onOpenChange={props.onOpenChange}>
-      <SheetContent
-        side="bottom"
-        showCloseButton
-        className="rounded-t-3xl px-5 pb-6 max-h-[85vh] overflow-y-auto safe-bottom"
-      >
-        <SheetHeader className="border-b border-muted/60 pb-3">
-          <SheetTitle>Filtros</SheetTitle>
-          <SheetDescription>
-            {typeof props.totalResults === "number"
-              ? `${props.totalResults} estilos disponibles`
-              : "Encuentra tu estilo ideal"}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="pt-4">
-          <FilterPanel
-            categories={categories}
-            sizes={sizes}
-            selectedCategory={selectedCategory}
-            selectedSizes={selectedSizes}
-            search={search}
-            onUpdate={onUpdate}
-          />
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }

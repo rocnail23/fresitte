@@ -3,14 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SlidersHorizontal, ShoppingBag, X } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { ShoppingBag } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { ProductCard, type CatalogProduct } from "@/components/catalog/product-card";
 import { ProductImageLightbox } from "@/components/catalog/product-image-lightbox";
-import { FilterSheet, type FilterOption } from "@/components/catalog/product-filters";
-import { Badge } from "@/components/ui/badge";
+import {
+  InlineFilters,
+  type FilterOption,
+} from "@/components/catalog/product-filters";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -64,7 +66,6 @@ export function CatalogGrid({
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setCartOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
-  const [isFiltersOpen, setFiltersOpen] = useState(false);
   const selectedSizes = selectedSize ? [selectedSize] : [];
   const [pendingSearch, setPendingSearch] = useState(searchTerm);
 
@@ -194,163 +195,114 @@ export function CatalogGrid({
     });
   };
 
-  const handleRemoveSingleFilter = (
-    type: "category" | "size" | "search",
-  ) => {
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    if (type === "search") setPendingSearch("");
-    params.delete(type);
-    params.delete("page");
-    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
-    startTransition(() => {
-      router.push(nextUrl, { scroll: true });
-    });
-  };
-
-  const activeCategoryLabel =
-    categories.find((c) => c.value === selectedCategory)?.label ?? null;
-  const activeSizeLabel =
-    sizeOptions.find((s) => s.value === selectedSize)?.label ?? null;
-
-  const hasActiveFilters =
+const hasActiveFilters =
     Boolean(selectedCategory) || Boolean(selectedSize) || Boolean(searchTerm);
+
+  const pushSearch = useCallback(
+    (value: string) => {
+      setPendingSearch(value);
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      const trimmed = value.trim();
+      if (trimmed) {
+        params.set("search", trimmed);
+      } else {
+        params.delete("search");
+      }
+      params.delete("page");
+      const nextUrl = params.size
+        ? `${pathname}?${params.toString()}`
+        : pathname;
+      startTransition(() => {
+        router.push(nextUrl, { scroll: true });
+      });
+    },
+    [pathname, router, searchParams, startTransition],
+  );
+
+  const pushFilters = useCallback(
+    ({
+      category: nextCategory,
+      sizes: nextSizes,
+    }: {
+      category?: string;
+      sizes?: string[];
+    }) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+
+      if (typeof nextCategory === "string") {
+        if (nextCategory) {
+          params.set("category", nextCategory);
+        } else {
+          params.delete("category");
+        }
+      }
+
+      if (Array.isArray(nextSizes)) {
+        const nextSize = nextSizes[0];
+        if (nextSize) {
+          params.set("size", nextSize);
+        } else {
+          params.delete("size");
+        }
+      }
+
+      params.delete("page");
+
+      const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+      startTransition(() => {
+        router.push(nextUrl, { scroll: true });
+      });
+    },
+    [pathname, router, searchParams, startTransition],
+  );
 
   return (
     <>
-      <FilterSheet
+      {/* Inline filters: search + 3 categories + 3 sizes always visible */}
+<InlineFilters
         categories={categories}
         sizes={sizeOptions}
         selectedCategory={selectedCategory}
         selectedSizes={selectedSizes}
         search={pendingSearch}
-        isOpen={isFiltersOpen}
-        onOpenChange={setFiltersOpen}
-        totalResults={filteredProducts.length}
-        onUpdate={({ category: nextCategory, sizes: nextSizes, search: nextSearch }) => {
-          const params = new URLSearchParams(searchParams?.toString() ?? "");
-
-          if (typeof nextCategory === "string") {
-            if (nextCategory) {
-              params.set("category", nextCategory);
-            } else {
-              params.delete("category");
-            }
+        previewCount={3}
+        onUpdate={({ category, sizes, search }) => {
+          if (typeof category === "string" || Array.isArray(sizes)) {
+            pushFilters({ category, sizes });
           }
-
-          if (Array.isArray(nextSizes)) {
-            const nextSize = nextSizes[0];
-            if (nextSize) {
-              params.set("size", nextSize);
-            } else {
-              params.delete("size");
-            }
+          if (typeof search === "string") {
+            pushSearch(search);
           }
-
-          if (typeof nextSearch === "string") {
-            setPendingSearch(nextSearch);
-            const trimmed = nextSearch.trim();
-            if (trimmed) {
-              params.set("search", trimmed);
-            } else {
-              params.delete("search");
-            }
-          }
-
-          params.delete("page");
-
-          const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
-          startTransition(() => {
-            router.push(nextUrl, { scroll: true });
-          });
         }}
       />
 
-      {/* Sticky filter bar — mobile only */}
-      <div className="sticky top-[57px] z-30 -mx-3 sm:mx-0">
-        <div className="px-3 sm:px-0">
-          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFiltersOpen(true)}
-              className="shrink-0 rounded-full h-10 px-4 border-primary/30 bg-white/95 text-primary"
-            >
-              <SlidersHorizontal className="h-4 w-4 mr-1.5" />
-              Filtrar
-              {hasActiveFilters ? (
-                <Badge
-                  variant="secondary"
-                  className="ml-2 bg-primary text-primary-foreground border-0 px-1.5 text-[10px] h-4"
-                >
-                  {(selectedCategory ? 1 : 0) +
-                    (selectedSize ? 1 : 0) +
-                    (searchTerm ? 1 : 0)}
-                </Badge>
-              ) : null}
-            </Button>
-
-            {activeCategoryLabel ? (
-              <button
-                type="button"
-                onClick={() => handleRemoveSingleFilter("category")}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
-              >
-                Categoría: {activeCategoryLabel}
-                <X className="h-3 w-3" />
-              </button>
-            ) : null}
-            {activeSizeLabel ? (
-              <button
-                type="button"
-                onClick={() => handleRemoveSingleFilter("size")}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
-              >
-                Talla: {activeSizeLabel}
-                <X className="h-3 w-3" />
-              </button>
-            ) : null}
-            {searchTerm ? (
-              <button
-                type="button"
-                onClick={() => handleRemoveSingleFilter("search")}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
-              >
-                “{searchTerm}”
-                <X className="h-3 w-3" />
-              </button>
-            ) : null}
-
+      <section className="rounded-3xl border border-white/80 bg-white/90 p-3 sm:p-5 md:p-6 shadow-xl shadow-primary/10 mt-3">
+        <div className="flex items-center justify-between gap-3 py-2 border-b border-muted/60">
+          <p className="text-xs text-muted-foreground">
+            {filteredProducts.length} estilos
+            {searchTerm ? ` para "${searchTerm}"` : ""}
+          </p>
+          <div className="flex items-center gap-3">
             {hasActiveFilters ? (
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="shrink-0 text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline ml-auto pr-1"
+                className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
               >
                 Limpiar
               </button>
             ) : null}
+            <button
+              type="button"
+              className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary"
+              aria-label="Ordenar"
+            >
+…
+              <span aria-hidden>⌄</span>
+            </button>
           </div>
         </div>
-      </div>
-
-      <section className="rounded-3xl border border-white/80 bg-white/90 p-3 sm:p-5 md:p-6 shadow-xl shadow-primary/10">
-        <div className="flex items-center justify-between gap-3 py-2 border-b border-muted/60">
-          <p className="text-sm text-muted-foreground">
-            {filteredProducts.length} estilos
-            {searchTerm ? ` para "${searchTerm}"` : " disponibles"}
-          </p>
-          <button
-            type="button"
-            className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary"
-            aria-label="Ordenar"
-          >
-            Ordenar por
-            <span aria-hidden>⌄</span>
-          </button>
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
           {filteredProducts.map((product, index) => (
             <ProductCard
               key={product.id}
