@@ -51,15 +51,15 @@ function CategoryChip({ category, isActive, onUpdate }: {
       aria-pressed={isActive}
       onClick={() => onUpdate(category.value)}
       className={cn(
-        "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-medium transition",
+        "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
       )}
     >
       <Badge
-        variant={isActive ? "default" : "outline"}
+        variant="outline"
         className={cn(
-          "rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs",
-          isActive && !category.color ? "bg-red-500 text-white border-transparent" : null,
+          "rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm leading-none",
+          isActive && !category.color ? "bg-red-500 text-white border-red-500" : null,
           isActive && category.color ? "border-transparent" : null,
         )}
         style={
@@ -86,7 +86,7 @@ function SizeChip({ size, isActive, onToggle }: {
       aria-pressed={isActive}
       onClick={() => onToggle(size.value)}
       className={cn(
-        "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full border px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-semibold transition",
+        "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full border px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-semibold transition",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         isActive
           ? "border-red-500 bg-red-500/10 text-red-600"
@@ -114,15 +114,15 @@ function CategoryRow({
         aria-pressed={!selectedCategory}
         onClick={() => onUpdate("")}
         className={cn(
-          "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-medium transition",
+          "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         )}
       >
         <Badge
-          variant={!selectedCategory ? "default" : "outline"}
+          variant="outline"
           className={cn(
-            "rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs",
-            !selectedCategory ? null : "border-red-500/60 text-red-600",
+            "rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm leading-none",
+            !selectedCategory ? "bg-primary text-primary-foreground border-primary" : null,
           )}
         >
           Todas
