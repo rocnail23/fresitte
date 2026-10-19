@@ -1,7 +1,7 @@
-import { and, count, desc, eq, gt, like, or } from "drizzle-orm";
+import { and, count, desc, eq, exists, gt, like, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { categories, products } from "@/db/schema";
+import { categories, productCategories, products } from "@/db/schema";
 import type { CatalogProduct } from "@/components/catalog/product-card";
 import type { FilterOption } from "@/components/catalog/product-filters";
 import { CatalogGrid } from "@/components/catalog/catalog-grid";
@@ -51,7 +51,13 @@ export default async function Home({
   const invalidCategoryFilter = Boolean(requestedCategory) && !matchedCategory;
 
   let totalProducts = 0;
-  let productRows: (typeof products.$inferSelect & { category: { name: string; slug: string } | null })[] = [];
+  let productRows: (typeof products.$inferSelect & {
+    productCategories: {
+      productId: number;
+      categoryId: number;
+      category: { name: string; slug: string } | null;
+    }[];
+  })[] = [];
   let totalPages = 1;
   let currentPage = 1;
 
@@ -59,7 +65,19 @@ export default async function Home({
     const whereClauses = [baseWhere];
 
     if (matchedCategory) {
-      whereClauses.push(eq(products.categoryId, matchedCategory.id));
+      whereClauses.push(
+        exists(
+          db
+            .select()
+            .from(productCategories)
+            .where(
+              and(
+                eq(productCategories.productId, products.id),
+                eq(productCategories.categoryId, matchedCategory.id),
+              ),
+            ),
+        ),
+      );
     }
 
     if (requestedSize) {
@@ -86,7 +104,11 @@ export default async function Home({
     const offset = (currentPage - 1) * PAGE_SIZE;
 
     productRows = await db.query.products.findMany({
-      with: { category: true },
+      with: {
+        productCategories: {
+          with: { category: true },
+        },
+      },
       where: whereExpression,
       orderBy: desc(products.createdAt),
       limit: PAGE_SIZE,
@@ -98,15 +120,22 @@ export default async function Home({
     const metadata = product.metadata ? safeJson(product.metadata) : null;
     const imageUrl = typeof metadata?.imageUrl === "string" ? metadata.imageUrl : undefined;
     const sizes = splitCommaValues(product.sizes);
+    const linkedCategories = (product.productCategories ?? []).flatMap((link) =>
+      link.category
+        ? [{ name: link.category.name, slug: link.category.slug }]
+        : [],
+    );
+    const primary = linkedCategories[0];
 
     return {
       id: String(product.id),
       name: product.name,
-      category: product.category?.name ?? "Colección Fresitte",
-      categoryValue: product.category?.slug ?? "",
+      category: primary?.name ?? "Colección Fresitte",
+      categoryValue: primary?.slug ?? "",
+      categories: linkedCategories,
       description: product.summary ?? product.description ?? "",
       price: product.priceCents / 100,
-      currency: product.currency ?? "USD",
+      currency: product.currency ?? "EUR",
       stock: product.stock,
       sizes: sizes.length ? sizes : ["Única"],
       imageUrl,
@@ -126,17 +155,19 @@ export default async function Home({
   const sizeOptions = buildSizeFilters(catalogProducts);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-2 md:px-4 py-10 sm:px-6">
-      <CatalogGrid
-        products={catalogProducts}
-        categories={categoryFilters}
-        sizeOptions={sizeOptions}
-        pagination={{ currentPage, totalPages, pageSize: PAGE_SIZE, totalItems: totalProducts }}
-        selectedCategory={requestedCategory}
-        selectedSize={requestedSize}
-        searchTerm={searchQuery}
-        whatsappNumber={env.WHATSAPP_NUMBER}
-      />
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-3 py-6 sm:px-6 sm:py-10 md:px-8">
+      <section id="catalogo" className="flex flex-col gap-6">
+        <CatalogGrid
+          products={catalogProducts}
+          categories={categoryFilters}
+          sizeOptions={sizeOptions}
+          pagination={{ currentPage, totalPages, pageSize: PAGE_SIZE, totalItems: totalProducts }}
+          selectedCategory={requestedCategory}
+          selectedSize={requestedSize}
+          searchTerm={searchQuery}
+          whatsappNumber={env.WHATSAPP_NUMBER}
+        />
+      </section>
     </main>
   );
 }

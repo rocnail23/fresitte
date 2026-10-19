@@ -15,6 +15,20 @@
       "when": 1774024267173,
       "tag": "0001_old_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792413026043,
+      "tag": "0002_product_categories_many_to_many",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792416239688,
+      "tag": "0003_switch_price_currency_to_EUR",
+      "breakpoints": true
     }
   ]
 }

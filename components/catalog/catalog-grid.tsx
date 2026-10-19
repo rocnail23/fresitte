@@ -3,11 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ShoppingBag } from "lucide-react";
+import { SlidersHorizontal, ShoppingBag, X } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { ProductCard, type CatalogProduct } from "@/components/catalog/product-card";
-import { ProductFilters, type FilterOption } from "@/components/catalog/product-filters";
+import { ProductImageLightbox } from "@/components/catalog/product-image-lightbox";
+import { FilterSheet, type FilterOption } from "@/components/catalog/product-filters";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -16,7 +19,6 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 
 interface CatalogGridProps {
@@ -62,6 +64,7 @@ export function CatalogGrid({
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setCartOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isFiltersOpen, setFiltersOpen] = useState(false);
   const selectedSizes = selectedSize ? [selectedSize] : [];
   const [pendingSearch, setPendingSearch] = useState(searchTerm);
 
@@ -82,11 +85,13 @@ export function CatalogGrid({
   }, [products]);
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-  const cartTotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
-  const cartCurrency = cartItems[0]?.currency ?? "USD";
-  const cartTotalLabel = new Intl.NumberFormat("es-US", {
+  const cartTotal = cartItems.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0,
+  );
+  const cartTotalLabel = new Intl.NumberFormat("es-ES", {
     style: "currency",
-    currency: cartCurrency,
+    currency: "EUR",
     minimumFractionDigits: 2,
   }).format(cartTotal);
   const sanitizedWhatsapp = useMemo(() => {
@@ -99,9 +104,9 @@ export function CatalogGrid({
     if (!sanitizedWhatsapp || cartItems.length === 0) return null;
     const lines = cartItems
       .map((item) => {
-        const lineTotal = new Intl.NumberFormat("es-US", {
+        const lineTotal = new Intl.NumberFormat("es-ES", {
           style: "currency",
-          currency: item.currency ?? "USD",
+          currency: "EUR",
           minimumFractionDigits: 2,
         }).format(item.price * item.quantity);
         return `• ${item.quantity}× ${item.name} (${lineTotal})`;
@@ -117,7 +122,9 @@ export function CatalogGrid({
       if (existing) {
         if (existing.quantity >= product.stock) return items;
         return items.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item,
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
         );
       }
       return [
@@ -133,7 +140,13 @@ export function CatalogGrid({
         },
       ];
     });
-    setCartOpen(true);
+    toast.success(`${product.name} agregado`, {
+      description: "Sigue armando tu pedido o pídelo por WhatsApp",
+      action: {
+        label: "Ver carrito",
+        onClick: () => setCartOpen(true),
+      },
+    });
   };
 
   const handleRemoveFromCart = (id: string) => {
@@ -144,7 +157,9 @@ export function CatalogGrid({
     setCartItems((items) =>
       items
         .map((item) =>
-          item.id === id ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item,
+          item.id === id
+            ? { ...item, quantity: Math.max(0, item.quantity - 1) }
+            : item,
         )
         .filter((item): item is CartItem => item.quantity > 0),
     );
@@ -163,18 +178,54 @@ export function CatalogGrid({
     } else {
       params.set("page", String(page));
     }
-    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
-    return nextUrl;
+    return params.size ? `${pathname}?${params.toString()}` : pathname;
   };
+
+  const handleClearFilters = () => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.delete("category");
+    params.delete("size");
+    params.delete("search");
+    params.delete("page");
+    setPendingSearch("");
+    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+    startTransition(() => {
+      router.push(nextUrl, { scroll: true });
+    });
+  };
+
+  const handleRemoveSingleFilter = (
+    type: "category" | "size" | "search",
+  ) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (type === "search") setPendingSearch("");
+    params.delete(type);
+    params.delete("page");
+    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+    startTransition(() => {
+      router.push(nextUrl, { scroll: true });
+    });
+  };
+
+  const activeCategoryLabel =
+    categories.find((c) => c.value === selectedCategory)?.label ?? null;
+  const activeSizeLabel =
+    sizeOptions.find((s) => s.value === selectedSize)?.label ?? null;
+
+  const hasActiveFilters =
+    Boolean(selectedCategory) || Boolean(selectedSize) || Boolean(searchTerm);
 
   return (
     <>
-      <ProductFilters
+      <FilterSheet
         categories={categories}
         sizes={sizeOptions}
         selectedCategory={selectedCategory}
         selectedSizes={selectedSizes}
         search={pendingSearch}
+        isOpen={isFiltersOpen}
+        onOpenChange={setFiltersOpen}
+        totalResults={filteredProducts.length}
         onUpdate={({ category: nextCategory, sizes: nextSizes, search: nextSearch }) => {
           const params = new URLSearchParams(searchParams?.toString() ?? "");
 
@@ -214,190 +265,322 @@ export function CatalogGrid({
         }}
       />
 
-      {isClient ? (
-        <Sheet open={isCartOpen} onOpenChange={setCartOpen}>
-          <SheetTrigger asChild>
-            <button
+      {/* Sticky filter bar — mobile only */}
+      <div className="sticky top-[57px] z-30 -mx-3 sm:mx-0">
+        <div className="px-3 sm:px-0">
+          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-2">
+            <Button
               type="button"
-              className="fixed bottom-6 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
-              aria-label={cartCount ? `Abrir carrito (${cartCount} artículos)` : "Abrir carrito"}
+              variant="outline"
+              size="sm"
+              onClick={() => setFiltersOpen(true)}
+              className="shrink-0 rounded-full h-10 px-4 border-primary/30 bg-white/95 text-primary"
             >
-              <ShoppingBag className="h-6 w-6" />
-              <span className="sr-only">Abrir carrito</span>
-              {cartCount ? (
-                <span className="absolute -top-1 -right-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white/95 px-2 text-xs font-semibold text-primary">
-                  {cartCount}
-                </span>
+              <SlidersHorizontal className="h-4 w-4 mr-1.5" />
+              Filtrar
+              {hasActiveFilters ? (
+                <Badge
+                  variant="secondary"
+                  className="ml-2 bg-primary text-primary-foreground border-0 px-1.5 text-[10px] h-4"
+                >
+                  {(selectedCategory ? 1 : 0) +
+                    (selectedSize ? 1 : 0) +
+                    (searchTerm ? 1 : 0)}
+                </Badge>
               ) : null}
-            </button>
-          </SheetTrigger>
+            </Button>
 
-          <SheetContent side="right" className="w-full max-w-lg space-y-0 border-l border-primary/20">
-            <SheetHeader className="border-b border-muted/50 pb-4">
-              <SheetTitle>Tu carrito</SheetTitle>
-              <SheetDescription>
-                {cartCount ? `${cartCount} artículos listos para pagar` : "Aún no agregas productos"}
-              </SheetDescription>
-            </SheetHeader>
-
-          <div className="flex-1 px-2">
-            {cartItems.length ? (
-              cartItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-4 rounded-2xl border border-muted/40 bg-white/90 p-4"
-                >
-                  <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-muted/40 bg-muted">
-                    {item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Intl.NumberFormat("es-US", {
-                        style: "currency",
-                        currency: item.currency ?? "USD",
-                        minimumFractionDigits: 2,
-                      }).format(item.price)}
-                      {` · Stock ${item.stock}`}
-                    </p>
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button variant="outline" size="icon" onClick={() => handleDecrease(item.id)}>
-                        -
-                      </Button>
-                      <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleIncrease(item.id)}
-                        disabled={item.quantity >= item.stock}
-                      >
-                        +
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFromCart(item.id)}>
-                        Quitar
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {new Intl.NumberFormat("es-US", {
-                      style: "currency",
-                      currency: item.currency ?? "USD",
-                      minimumFractionDigits: 2,
-                    }).format(item.price * item.quantity)}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-muted bg-white/80 p-8 text-center text-sm text-muted-foreground">
-                Agrega tus estilos favoritos para verlos aquí.
-              </div>
-            )}
-          </div>
-
-          <SheetFooter className="border-t border-muted/50 pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Total estimado</p>
-              <p className="text-xl font-heading text-foreground">{cartTotalLabel}</p>
-            </div>
-            {sanitizedWhatsapp ? (
-              <Button
-                asChild
-                className="w-full rounded-full bg-emerald-600 py-6 text-base hover:bg-emerald-500"
-                disabled={!cartItems.length || !whatsappCheckoutUrl}
+            {activeCategoryLabel ? (
+              <button
+                type="button"
+                onClick={() => handleRemoveSingleFilter("category")}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
               >
-                <a
-                  href={cartItems.length ? whatsappCheckoutUrl ?? undefined : undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Enviar pedido por WhatsApp
-                </a>
-              </Button>
-            ) : (
-              <Button className="w-full rounded-full bg-primary py-6 text-base" disabled>
-                Configura WHATSAPP_NUMBER
-              </Button>
-            )}
-            <p className="text-center text-xs text-muted-foreground">
-              Abriremos WhatsApp con el resumen listo para que confirmes tu pedido.
-            </p>
-          </SheetFooter>
-        </SheetContent>
-        </Sheet>
-      ) : null}
+                Categoría: {activeCategoryLabel}
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
+            {activeSizeLabel ? (
+              <button
+                type="button"
+                onClick={() => handleRemoveSingleFilter("size")}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+              >
+                Talla: {activeSizeLabel}
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => handleRemoveSingleFilter("search")}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+              >
+                “{searchTerm}”
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
 
-      <section className="rounded-[40px] border border-white/70 bg-white/90 p-4 md:p-6 shadow-2xl shadow-primary/10">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-muted pb-4">
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="shrink-0 text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline ml-auto pr-1"
+              >
+                Limpiar
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <section className="rounded-3xl border border-white/80 bg-white/90 p-3 sm:p-5 md:p-6 shadow-xl shadow-primary/10">
+        <div className="flex items-center justify-between gap-3 py-2 border-b border-muted/60">
           <p className="text-sm text-muted-foreground">
             {filteredProducts.length} estilos
             {searchTerm ? ` para "${searchTerm}"` : " disponibles"}
           </p>
           <button
             type="button"
-            className="text-sm font-semibold text-primary"
-            onClick={() => {
-              const params = new URLSearchParams(searchParams?.toString() ?? "");
-              params.delete("category");
-              params.delete("size");
-              params.delete("search");
-              params.delete("page");
-              setPendingSearch("");
-              const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
-              startTransition(() => {
-                router.push(nextUrl, { scroll: true });
-              });
-            }}
+            className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary"
+            aria-label="Ordenar"
           >
-            Limpiar filtros
+            Ordenar por
+            <span aria-hidden>⌄</span>
           </button>
         </div>
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
+
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+          {filteredProducts.map((product, index) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={handleAddToCart}
+              priority={index < 2}
+            />
           ))}
           {filteredProducts.length === 0 ? (
-            <div className="col-span-full rounded-3xl border border-dashed border-muted bg-white/70 p-10 text-center">
-              <p className="font-heading text-2xl text-foreground">No encontramos coincidencias</p>
-              <p className="text-sm text-muted-foreground">
+            <div className="col-span-full rounded-2xl border border-dashed border-muted bg-white/70 p-8 sm:p-10 text-center">
+              <p className="font-heading text-xl sm:text-2xl text-foreground">
+                No encontramos coincidencias
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Ajusta los filtros o prueba con otra talla/categoría.
               </p>
+              <Button
+                variant="outline"
+                onClick={handleClearFilters}
+                className="mt-4 rounded-full border-primary/30 text-primary"
+              >
+                Limpiar filtros
+              </Button>
             </div>
           ) : null}
         </div>
 
-        {pagination ? (
-          <div className="mt-6 flex flex-col items-center gap-3">
-            <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-              Página {pagination.currentPage} de {pagination.totalPages}
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                asChild
-                disabled={pagination.currentPage <= 1}
-                className="rounded-full"
-              >
-                <Link href={buildPageHref(Math.max(1, pagination.currentPage - 1))} scroll>
-                  Anterior
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                asChild
-                disabled={pagination.currentPage >= pagination.totalPages}
-                className="rounded-full"
-              >
-                <Link href={buildPageHref(Math.min(pagination.totalPages, pagination.currentPage + 1))} scroll>
-                  Siguiente
-                </Link>
-              </Button>
+        {pagination && pagination.totalPages > 1 ? (
+          <div className="sticky bottom-0 z-20 -mx-3 sm:mx-0">
+            <div className="safe-bottom mt-6 border-t border-muted/60 bg-background/80 backdrop-blur-md px-3 sm:px-0 py-3">
+              <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+                <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
+                  Página {pagination.currentPage} de {pagination.totalPages}
+                </p>
+                <div className="flex w-full gap-2 sm:w-auto">
+                  <Button
+                    variant="outline"
+                    asChild
+                    disabled={pagination.currentPage <= 1}
+                    className="flex-1 rounded-full sm:flex-none"
+                  >
+                    <Link
+                      href={buildPageHref(Math.max(1, pagination.currentPage - 1))}
+                      scroll
+                    >
+                      Anterior
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    asChild
+                    disabled={pagination.currentPage >= pagination.totalPages}
+                    className="flex-1 rounded-full sm:flex-none"
+                  >
+                    <Link
+                      href={buildPageHref(
+                        Math.min(pagination.totalPages, pagination.currentPage + 1),
+                      )}
+                      scroll
+                    >
+                      Siguiente
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         ) : null}
       </section>
 
+      {/* Cart FAB + sticky WhatsApp CTA */}
+      {isClient && cartCount > 0 && whatsappCheckoutUrl ? (
+        <div className="fixed left-4 right-4 z-40 bottom-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <a
+            href={whatsappCheckoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="safe-bottom-tight flex items-center justify-center gap-2 rounded-full bg-emerald-600 text-white py-3 px-5 text-center font-semibold shadow-2xl shadow-emerald-900/30 transition hover:bg-emerald-500"
+          >
+            <ShoppingBag className="h-5 w-5" />
+            Pedir por WhatsApp · {cartTotalLabel}
+          </a>
+        </div>
+      ) : null}
+
+      {isClient ? (
+        <Sheet open={isCartOpen} onOpenChange={setCartOpen}>
+          <SheetContent
+            side="right"
+            className="flex w-full max-w-lg flex-col gap-0 border-l border-primary/20 px-6 sm:px-8"
+          >
+            <SheetHeader className="space-y-1.5 border-b border-muted/60 px-0 pb-5 pt-6">
+              <SheetTitle>Tu carrito</SheetTitle>
+              <SheetDescription>
+                {cartCount
+                  ? `${cartCount} artículos listos para pagar`
+                  : "Aún no agregas productos"}
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="flex-1 overflow-y-auto px-0 py-5">
+              {cartItems.length ? (
+                <ul className="flex flex-col gap-4">
+                  {cartItems.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-start gap-4 rounded-2xl border border-muted/40 bg-white/90 p-5"
+                    >
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-muted/40 bg-muted">
+                        {item.imageUrl ? (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-medium leading-snug text-foreground">
+                            {item.name}
+                          </p>
+                          <p className="shrink-0 text-sm font-semibold text-foreground">
+                            {new Intl.NumberFormat("es-ES", {
+                              style: "currency",
+                              currency: "EUR",
+                              minimumFractionDigits: 2,
+                            }).format(item.price * item.quantity)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Intl.NumberFormat("es-ES", {
+                            style: "currency",
+                            currency: "EUR",
+                            minimumFractionDigits: 2,
+                          }).format(item.price)}
+                          {` · Stock ${item.stock}`}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDecrease(item.id)}
+                            >
+                              -
+                            </Button>
+                            <span className="w-8 text-center text-sm font-semibold">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleIncrease(item.id)}
+                              disabled={item.quantity >= item.stock}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveFromCart(item.id)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-muted bg-white/80 px-6 py-10 text-center text-sm text-muted-foreground">
+                  Agrega tus estilos favoritos para verlos aquí.
+                </div>
+              )}
+            </div>
+
+            <SheetFooter className="gap-4 border-t border-muted/60 px-0 pb-6 pt-5 safe-bottom">
+              <div className="flex items-baseline justify-between">
+                <p className="text-sm text-muted-foreground">Total estimado</p>
+                <p className="text-2xl font-heading text-foreground">
+                  {cartTotalLabel}
+                </p>
+              </div>
+              {sanitizedWhatsapp ? (
+                <Button
+                  asChild
+                  className="w-full rounded-full bg-emerald-600 py-6 text-base hover:bg-emerald-500"
+                  disabled={!cartItems.length || !whatsappCheckoutUrl}
+                >
+                  <a
+                    href={
+                      cartItems.length ? whatsappCheckoutUrl ?? undefined : undefined
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Enviar pedido por WhatsApp
+                  </a>
+                </Button>
+              ) : (
+                <Button className="w-full rounded-full bg-primary py-6 text-base" disabled>
+                  Configura WHATSAPP_NUMBER
+                </Button>
+              )}
+              <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                Abriremos WhatsApp con el resumen listo para que confirmes tu pedido.
+              </p>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : null}
+
+      {/* Floating cart button (only when no items — keeps low-noise empty state) */}
+      {isClient && cartCount === 0 ? (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          aria-label="Abrir carrito"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
+        >
+          <ShoppingBag className="h-6 w-6" />
+          <span className="sr-only">Abrir carrito</span>
+        </button>
+      ) : null}
+
+      <ProductImageLightbox />
     </>
   );
 }

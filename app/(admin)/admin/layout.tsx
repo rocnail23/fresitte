@@ -1,23 +1,16 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Package, Settings, ShoppingBasket, Store } from "lucide-react";
 
 import { requireAdmin } from "@/lib/auth";
 
 import { AdminNav } from "./_components/admin-nav";
 import { SignOutButton } from "@/components/admin/sign-out-button";
+import { Toaster } from "@/components/ui/sonner";
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
-
-const navItems = [
- 
-  { href: "/admin/products", label: "Productos", icon: ShoppingBasket },
-  { href: "/admin/categories", label: "Categorías", icon: Package },
- 
-];
 
 export default async function AdminLayout({ children }: AdminLayoutProps) {
   const user = await requireAdmin();
@@ -41,6 +34,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           {children}
         </main>
       </div>
+      <Toaster richColors position="top-right" />
     </div>
   );
 }

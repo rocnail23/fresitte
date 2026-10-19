@@ -2,17 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, Settings, ShoppingBasket, Store, type LucideIcon } from "lucide-react";
+import { Package, ShoppingBasket, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface AdminNavItem {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-const navItems = [
- 
+const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/products", label: "Productos", icon: ShoppingBasket },
   { href: "/admin/categories", label: "Categorías", icon: Package },
 ];
