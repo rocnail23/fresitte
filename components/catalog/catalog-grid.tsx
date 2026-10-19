@@ -322,17 +322,17 @@ const hasActiveFilters =
 
         {pagination && pagination.totalPages > 1 ? (
           <div className="sticky bottom-0 z-20 -mx-3 sm:mx-0">
-            <div className="safe-bottom mt-6 border-t border-muted/60 bg-background/80 backdrop-blur-md px-3 sm:px-0 py-3">
-              <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-                <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
-                  Página {pagination.currentPage} de {pagination.totalPages}
+            <div className="safe-bottom mt-8 border-t border-muted/60 bg-background/90 backdrop-blur-md px-4 sm:px-6 py-5 sm:py-6">
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+                <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">
+                  Página {pagination.currentPage} / {pagination.totalPages}
                 </p>
-                <div className="flex w-full gap-2 sm:w-auto">
+                <div className="flex w-full gap-3 sm:w-auto">
                   <Button
                     variant="outline"
                     asChild
                     disabled={pagination.currentPage <= 1}
-                    className="flex-1 rounded-full sm:flex-none"
+                    className="flex-1 rounded-full px-3 py-2 text-sm sm:flex-none sm:px-6"
                   >
                     <Link
                       href={buildPageHref(Math.max(1, pagination.currentPage - 1))}
@@ -345,7 +345,7 @@ const hasActiveFilters =
                     variant="outline"
                     asChild
                     disabled={pagination.currentPage >= pagination.totalPages}
-                    className="flex-1 rounded-full sm:flex-none"
+                    className="flex-1 rounded-full px-3 py-2 text-sm sm:flex-none sm:px-6"
                   >
                     <Link
                       href={buildPageHref(

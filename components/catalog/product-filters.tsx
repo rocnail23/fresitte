@@ -51,15 +51,17 @@ function CategoryChip({ category, isActive, onUpdate }: {
       aria-pressed={isActive}
       onClick={() => onUpdate(category.value)}
       className={cn(
-        "shrink-0 snap-start min-h-[28px] rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+        "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-medium transition",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
       )}
     >
       <Badge
         variant={isActive ? "default" : "outline"}
-        className={cn("rounded-full px-2.5 py-0.5 text-xs", {
-          "bg-primary text-primary-foreground": isActive,
-        })}
+        className={cn(
+          "rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs",
+          isActive && !category.color ? "bg-red-500 text-white border-transparent" : null,
+          isActive && category.color ? "border-transparent" : null,
+        )}
         style={
           isActive && category.color
             ? { backgroundColor: category.color, color: "#1a120c" }
@@ -84,10 +86,10 @@ function SizeChip({ size, isActive, onToggle }: {
       aria-pressed={isActive}
       onClick={() => onToggle(size.value)}
       className={cn(
-        "shrink-0 snap-start min-h-[28px] rounded-full border px-2.5 py-0.5 text-xs font-semibold transition",
+        "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full border px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-semibold transition",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         isActive
-          ? "border-primary/40 bg-primary/10 text-primary"
+          ? "border-red-500 bg-red-500/10 text-red-600"
           : "border-muted bg-white/80 text-foreground hover:border-primary/20",
       )}
     >
@@ -96,7 +98,11 @@ function SizeChip({ size, isActive, onToggle }: {
   );
 }
 
-function CategoryRow({ categories, selectedCategory, onUpdate }: {
+function CategoryRow({
+  categories,
+  selectedCategory,
+  onUpdate,
+}: {
   categories: FilterOption[];
   selectedCategory: string;
   onUpdate: (category: string) => void;
@@ -108,15 +114,16 @@ function CategoryRow({ categories, selectedCategory, onUpdate }: {
         aria-pressed={!selectedCategory}
         onClick={() => onUpdate("")}
         className={cn(
-          "shrink-0 snap-start min-h-[28px] rounded-full px-2.5 py-0.5 text-xs font-medium transition",
+          "shrink-0 snap-start min-h-[36px] sm:min-h-[28px] rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs font-medium transition",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         )}
       >
         <Badge
           variant={!selectedCategory ? "default" : "outline"}
-          className={cn("rounded-full px-2.5 py-0.5 text-xs", {
-            "bg-primary text-primary-foreground": !selectedCategory,
-          })}
+          className={cn(
+            "rounded-full px-3 sm:px-2.5 py-1 sm:py-0.5 text-sm sm:text-xs",
+            !selectedCategory ? null : "border-red-500/60 text-red-600",
+          )}
         >
           Todas
         </Badge>
@@ -133,7 +140,11 @@ function CategoryRow({ categories, selectedCategory, onUpdate }: {
   );
 }
 
-function SizeRow({ sizes, selectedSizes, onToggle }: {
+function SizeRow({
+  sizes,
+  selectedSizes,
+  onToggle,
+}: {
   sizes: FilterOption[];
   selectedSizes: string[];
   onToggle: (value: string) => void;
@@ -173,7 +184,7 @@ export function FilterSearchBar({ search, onUpdate }: FilterSearchBarProps) {
         value={search}
         onChange={(event) => onUpdate(event.target.value)}
         aria-label="Buscar producto"
-        className="rounded-full border-primary/20 bg-white/95 pl-10 pr-10 h-10"
+        className="rounded-full border-primary/20 bg-white/95 pl-10 pr-10 h-11 sm:h-10 text-base sm:text-sm"
       />
       {search ? (
         <button
@@ -222,8 +233,28 @@ export function InlineFilters({
     onUpdate({ sizes: isSelected ? [] : [value] });
   };
 
-  const previewCategories = categories.slice(0, previewCount);
-  const previewSizes = sizes.slice(0, previewCount);
+  // Build the visible chips so the active option is always shown, even when
+  // it lives past the previewCount slot — it replaces the last preview item
+  // instead of being added (so the row never grows past N+1 entries).
+  const previewCategories = useMemo(() => {
+    const preview = categories.slice(0, previewCount);
+    if (!selectedCategory) return preview;
+    if (preview.some((c) => c.value === selectedCategory)) return preview;
+    const active = categories.find((c) => c.value === selectedCategory);
+    if (!active) return preview;
+    return [...preview.slice(0, -1), active];
+  }, [categories, previewCount, selectedCategory]);
+
+  const previewSizes = useMemo(() => {
+    const preview = sizes.slice(0, previewCount);
+    const activeSize = selectedSizes[0];
+    if (!activeSize) return preview;
+    if (preview.some((s) => s.value === activeSize)) return preview;
+    const active = sizes.find((s) => s.value === activeSize);
+    if (!active) return preview;
+    return [...preview.slice(0, -1), active];
+  }, [sizes, previewCount, selectedSizes]);
+
   const hasOverflow =
     categories.length > previewCount || sizes.length > previewCount;
 
