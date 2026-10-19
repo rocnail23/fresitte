@@ -14,19 +14,35 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-row gap-2 overflow-x-auto rounded-3xl border border-white/70 bg-white/90 p-4 shadow-lg shadow-primary/10 lg:h-fit lg:w-64 lg:flex-col">
+    <nav
+      aria-label="Administración"
+      className="flex flex-row gap-2 overflow-x-auto rounded-3xl border border-white/70 bg-white/95 p-2 shadow-sm shadow-primary/10 lg:h-fit lg:w-64 lg:flex-col lg:gap-1 lg:p-3"
+    >
+      <p className="hidden px-3 pt-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground lg:block">
+        Inventario
+      </p>
       {navItems.map((item) => {
-        const isActive = pathname === item.href;
+        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}
             href={item.href}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-2xl px-3 py-2 font-semibold transition",
-              isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-primary/5",
+              "flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2 text-sm font-semibold transition",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              isActive
+                ? "border-primary/15 bg-primary/10 text-primary shadow-inner"
+                : "text-muted-foreground hover:border-primary/10 hover:bg-primary/5 hover:text-foreground",
             )}
           >
-            <item.icon className="h-4 w-4" />
+            <item.icon
+              aria-hidden
+              className={cn(
+                "h-4 w-4 shrink-0 transition",
+                isActive ? "text-primary" : "text-muted-foreground/80",
+              )}
+            />
             {item.label}
           </Link>
         );

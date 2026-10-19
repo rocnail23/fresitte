@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,41 +37,6 @@ export interface ProductFiltersProps {
 }
 
 export type FilterSheetProps = ProductFiltersProps;
-
-function CategoryChip({ category, isActive, onUpdate }: {
-  category: FilterOption;
-  isActive: boolean;
-  onUpdate: (category: string) => void;
-}) {
-  return (
-    <button
-      key={category.value}
-      type="button"
-      aria-pressed={isActive}
-      onClick={() => onUpdate(category.value)}
-      className={cn(
-        "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-      )}
-    >
-      <Badge
-        variant="outline"
-        className={cn(
-          "rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm leading-none",
-          isActive && !category.color ? "bg-red-500 text-white border-red-500" : null,
-          isActive && category.color ? "border-transparent" : null,
-        )}
-        style={
-          isActive && category.color
-            ? { backgroundColor: category.color, color: "#1a120c" }
-            : undefined
-        }
-      >
-        {category.label}
-      </Badge>
-    </button>
-  );
-}
 
 function SizeChip({ size, isActive, onToggle }: {
   size: FilterOption;
@@ -114,28 +78,43 @@ function CategoryRow({
         aria-pressed={!selectedCategory}
         onClick={() => onUpdate("")}
         className={cn(
-          "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
+          "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full border px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+          !selectedCategory
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted bg-white/80 text-muted-foreground hover:border-primary/20 hover:text-foreground",
         )}
       >
-        <Badge
-          variant="outline"
-          className={cn(
-            "rounded-full px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm leading-none",
-            !selectedCategory ? "bg-primary text-primary-foreground border-primary" : null,
-          )}
-        >
-          Todas
-        </Badge>
+        Todas
       </button>
-      {categories.map((category) => (
-        <CategoryChip
-          key={category.value}
-          category={category}
-          isActive={selectedCategory === category.value}
-          onUpdate={onUpdate}
-        />
-      ))}
+      {categories.map((category) => {
+        const isActive = selectedCategory === category.value;
+        const useCategoryColor = isActive && Boolean(category.color);
+        return (
+          <button
+            key={category.value}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onUpdate(category.value)}
+            className={cn(
+              "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full border px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-medium transition",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              isActive
+                ? useCategoryColor
+                  ? "border-transparent"
+                  : "border-primary bg-primary text-primary-foreground"
+                : "border-muted bg-white/80 text-muted-foreground hover:border-primary/20 hover:text-foreground",
+            )}
+            style={
+              useCategoryColor
+                ? { backgroundColor: category.color, color: "#1a120c" }
+                : undefined
+            }
+          >
+            {category.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

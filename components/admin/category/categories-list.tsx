@@ -84,7 +84,7 @@ export function CategoriesList({ categories }: CategoriesListProps) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
         {categories.map((category) => (
           <CategoryCard
             key={category.id}

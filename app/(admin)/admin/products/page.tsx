@@ -88,15 +88,15 @@ export default async function AdminProductsPage({
     <div className="flex flex-col gap-6">
       <ToastFeedback basePath="/admin/products" />
 
-      <header className="sticky top-0 z-10 -mx-6 flex flex-col gap-2 border-b border-border/40 bg-card/90 px-6 py-4 backdrop-blur sm:flex-row sm:items-end sm:justify-between">
+      <header className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 border-b border-border/40 bg-card/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:flex-row sm:items-end sm:justify-between sm:px-6">
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
             Inventario
           </p>
-          <h1 className="font-heading text-3xl text-foreground">
+          <h1 className="font-heading text-2xl text-foreground sm:text-3xl">
             Productos
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground tabular-nums">
             {productList.length} producto{productList.length === 1 ? "" : "s"}
           </p>
         </div>

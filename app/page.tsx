@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { categories, productCategories, products } from "@/db/schema";
 import type { CatalogProduct } from "@/components/catalog/product-card";
 import type { FilterOption } from "@/components/catalog/product-filters";
-import { CatalogGrid } from "@/components/catalog/catalog-grid";
 import { env } from "@/lib/env";
+import { CatalogSection } from "@/components/landing/catalog-section";
 
 const FALLBACK_SIZES = [
   "RN",
@@ -43,7 +43,10 @@ export default async function Home({
 
   const baseWhere = and(eq(products.isVisible, true), gt(products.stock, 0));
 
-  const categoryRows = await db.select().from(categories).orderBy(categories.displayOrder, categories.name);
+  const categoryRows = await db
+    .select()
+    .from(categories)
+    .orderBy(categories.displayOrder, categories.name);
   const matchedCategory = requestedCategory
     ? categoryRows.find((category) => category.slug === requestedCategory)
     : null;
@@ -95,9 +98,14 @@ export default async function Home({
       );
     }
 
-    const whereExpression = whereClauses.slice(1).reduce((acc, clause) => and(acc, clause), whereClauses[0]);
+    const whereExpression = whereClauses
+      .slice(1)
+      .reduce((acc, clause) => and(acc, clause), whereClauses[0]);
 
-    const totalResult = await db.select({ value: count() }).from(products).where(whereExpression);
+    const totalResult = await db
+      .select({ value: count() })
+      .from(products)
+      .where(whereExpression);
     totalProducts = totalResult?.[0]?.value ?? 0;
     totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
     currentPage = Math.min(requestedPage, totalPages);
@@ -116,67 +124,88 @@ export default async function Home({
     });
   }
 
-  const catalogProducts: CatalogProduct[] = productRows.map((product) => {
-    const metadata = product.metadata ? safeJson(product.metadata) : null;
-    const imageUrl = typeof metadata?.imageUrl === "string" ? metadata.imageUrl : undefined;
-    const sizes = splitCommaValues(product.sizes);
-    const linkedCategories = (product.productCategories ?? []).flatMap((link) =>
-      link.category
-        ? [{ name: link.category.name, slug: link.category.slug }]
-        : [],
-    );
-    const primary = linkedCategories[0];
+  const catalogProducts: CatalogProduct[] = productRows.map((product) =>
+    toCatalogProduct(product),
+  );
 
-    return {
-      id: String(product.id),
-      name: product.name,
-      category: primary?.name ?? "Colección Fresitte",
-      categoryValue: primary?.slug ?? "",
-      categories: linkedCategories,
-      description: product.summary ?? product.description ?? "",
-      price: product.priceCents / 100,
-      currency: product.currency ?? "EUR",
-      stock: product.stock,
-      sizes: sizes.length ? sizes : ["Única"],
-      imageUrl,
-      label: product.isFeatured ? "Destacado" : undefined,
-    };
-  });
+  const categoryFilters: FilterOption[] = categoryRows.map((category) => ({
+    value: category.slug,
+    label: category.name,
+    color: category.highlightColor ?? undefined,
+  }));
 
-  const categoryFilters: FilterOption[] = [
-    { value: "", label: "Todas" },
-    ...categoryRows.map((category) => ({
-      value: category.slug,
-      label: category.name,
-      color: category.highlightColor ?? undefined,
-    })),
-  ];
-
-  const sizeOptions = buildSizeFilters(catalogProducts);
+  const sizeOptions = buildSizeFilters();
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-3 py-6 sm:px-6 sm:py-10 md:px-8">
-      <section id="catalogo" className="flex flex-col gap-6">
-        <CatalogGrid
-          products={catalogProducts}
-          categories={categoryFilters}
-          sizeOptions={sizeOptions}
-          pagination={{ currentPage, totalPages, pageSize: PAGE_SIZE, totalItems: totalProducts }}
-          selectedCategory={requestedCategory}
-          selectedSize={requestedSize}
-          searchTerm={searchQuery}
-          whatsappNumber={env.WHATSAPP_NUMBER}
-        />
-      </section>
+    <main className="flex w-full flex-1 flex-col">
+      <CatalogSection
+        products={catalogProducts}
+        categories={categoryFilters}
+        sizeOptions={sizeOptions}
+        totalItems={totalProducts}
+        pageSize={PAGE_SIZE}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        selectedCategory={requestedCategory}
+        selectedSize={requestedSize}
+        searchTerm={searchQuery}
+        whatsappNumber={env.WHATSAPP_NUMBER ?? null}
+      />
     </main>
   );
 }
 
+function toCatalogProduct(product: {
+  id: number;
+  name: string;
+  summary: string | null;
+  description: string | null;
+  priceCents: number;
+  currency: string;
+  stock: number;
+  sizes: string | null;
+  isFeatured: boolean;
+  metadata: string | null;
+  productCategories: {
+    productId: number;
+    categoryId: number;
+    category: { name: string; slug: string } | null;
+  }[];
+}): CatalogProduct {
+  const metadata = product.metadata ? safeJson(product.metadata) : null;
+  const imageUrl =
+    typeof metadata?.imageUrl === "string" ? metadata.imageUrl : undefined;
+  const sizes = splitCommaValues(product.sizes);
+  const linkedCategories = (product.productCategories ?? []).flatMap((link) =>
+    link.category
+      ? [{ name: link.category.name, slug: link.category.slug }]
+      : [],
+  );
+  const primary = linkedCategories[0];
+
+  return {
+    id: String(product.id),
+    name: product.name,
+    category: primary?.name ?? "Colección Fresitte",
+    categoryValue: primary?.slug ?? "",
+    categories: linkedCategories,
+    description: product.summary ?? product.description ?? "",
+    price: product.priceCents / 100,
+    currency: product.currency ?? "EUR",
+    stock: product.stock,
+    sizes: sizes.length ? sizes : ["Única"],
+    imageUrl,
+    label: product.isFeatured ? "Destacado" : undefined,
+  };
+}
+
 function splitCommaValues(value?: string | null) {
-  return value
-    ?.split(",")
-    .map((item) => item.trim())
-    .filter(Boolean) ?? [];
+  return (
+    value
+      ?.split(",")
+      .map((item) => item.trim())
+      .filter(Boolean) ?? []
+  );
 }
 
 function safeJson(value: string) {
@@ -188,13 +217,6 @@ function safeJson(value: string) {
   }
 }
 
-function buildSizeFilters(products: CatalogProduct[]): FilterOption[] {
-  const uniqueSizes = new Set<string>();
-  products.forEach((product) => {
-    product.sizes.forEach((size) => uniqueSizes.add(size));
-  });
-
-  const sizes = uniqueSizes.size ? Array.from(uniqueSizes) : FALLBACK_SIZES;
-
-  return sizes.map((size) => ({ value: size, label: size }));
+function buildSizeFilters(): FilterOption[] {
+  return FALLBACK_SIZES.map((size) => ({ value: size, label: size }));
 }

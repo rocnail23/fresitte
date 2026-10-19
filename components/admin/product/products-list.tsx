@@ -112,7 +112,7 @@ export function ProductsList({ products, categoryList }: ProductsListProps) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
         {products.map((product) => (
           <ProductCard
             key={product.id}

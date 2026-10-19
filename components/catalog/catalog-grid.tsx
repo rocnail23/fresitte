@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -276,7 +276,7 @@ const hasActiveFilters =
         }}
       />
 
-      <section className="rounded-3xl border border-white/80 bg-white/90 p-3 sm:p-5 md:p-6 shadow-xl shadow-primary/10 mt-3">
+      <section className="mt-3 rounded-3xl border border-white/80 bg-white/90 p-3 shadow-xl shadow-primary/10 sm:p-5 md:p-6">
         <div className="flex items-center justify-between gap-3 py-2 border-b border-muted/60">
           <p className="text-xs text-muted-foreground">
             {filteredProducts.length} estilos
@@ -286,13 +286,14 @@ const hasActiveFilters =
             <button
               type="button"
               onClick={handleClearFilters}
-              className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
             >
-              Limpiar
+              <X className="h-3 w-3" />
+              Limpiar filtros
             </button>
           ) : null}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+        <div className="mt-5 grid grid-cols-2 items-stretch gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProducts.map((product, index) => (
             <ProductCard
               key={product.id}
@@ -321,43 +322,42 @@ const hasActiveFilters =
         </div>
 
         {pagination && pagination.totalPages > 1 ? (
-          <div className="sticky bottom-0 z-20 -mx-3 sm:mx-0">
-            <div className="safe-bottom mt-8 border-t border-muted/60 bg-background/90 backdrop-blur-md px-4 sm:px-6 py-5 sm:py-6">
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-                <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">
-                  Página {pagination.currentPage} / {pagination.totalPages}
-                </p>
-                <div className="flex w-full gap-3 sm:w-auto">
-                  <Button
-                    variant="outline"
-                    asChild
-                    disabled={pagination.currentPage <= 1}
-                    className="flex-1 rounded-full px-3 py-2 text-sm sm:flex-none sm:px-6"
-                  >
-                    <Link
-                      href={buildPageHref(Math.max(1, pagination.currentPage - 1))}
-                      scroll
-                    >
-                      Anterior
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    asChild
-                    disabled={pagination.currentPage >= pagination.totalPages}
-                    className="flex-1 rounded-full px-3 py-2 text-sm sm:flex-none sm:px-6"
-                  >
-                    <Link
-                      href={buildPageHref(
-                        Math.min(pagination.totalPages, pagination.currentPage + 1),
-                      )}
-                      scroll
-                    >
-                      Siguiente
-                    </Link>
-                  </Button>
-                </div>
-              </div>
+          <div className="mt-10 flex flex-col items-center gap-3 border-t border-muted/60 pt-6 sm:flex-row sm:justify-between">
+            <p className="text-xs text-muted-foreground tabular-nums">
+              <span className="font-semibold text-foreground">
+                Página {pagination.currentPage}
+              </span>{" "}
+              de {pagination.totalPages} · {pagination.totalItems} estilos en total
+            </p>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button
+                variant="outline"
+                asChild
+                disabled={pagination.currentPage <= 1}
+                className="flex-1 rounded-full px-4 py-2 text-sm sm:flex-none"
+              >
+                <Link
+                  href={buildPageHref(Math.max(1, pagination.currentPage - 1))}
+                  scroll
+                >
+                  Anterior
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                asChild
+                disabled={pagination.currentPage >= pagination.totalPages}
+                className="flex-1 rounded-full px-4 py-2 text-sm sm:flex-none"
+              >
+                <Link
+                  href={buildPageHref(
+                    Math.min(pagination.totalPages, pagination.currentPage + 1),
+                  )}
+                  scroll
+                >
+                  Siguiente
+                </Link>
+              </Button>
             </div>
           </div>
         ) : null}
