@@ -282,25 +282,15 @@ const hasActiveFilters =
             {filteredProducts.length} estilos
             {searchTerm ? ` para "${searchTerm}"` : ""}
           </p>
-          <div className="flex items-center gap-3">
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Limpiar
-              </button>
-            ) : null}
+          {hasActiveFilters ? (
             <button
               type="button"
-              className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary"
-              aria-label="Ordenar"
+              onClick={handleClearFilters}
+              className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:underline"
             >
-…
-              <span aria-hidden>⌄</span>
+              Limpiar
             </button>
-          </div>
+          ) : null}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
           {filteredProducts.map((product, index) => (
