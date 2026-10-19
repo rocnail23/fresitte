@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { categories } from "@/db/schema";
@@ -74,6 +74,8 @@ export async function createCategoryAction(formData: FormData) {
   }
 
   revalidatePath("/admin/categories");
+  updateTag("categories");
+  updateTag("catalog");
   redirectWithFeedback("success", "Categoría creada correctamente");
 }
 
@@ -123,6 +125,8 @@ export async function updateCategoryAction(formData: FormData) {
   }
 
   revalidatePath("/admin/categories");
+  updateTag("categories");
+  updateTag("catalog");
   redirectWithFeedback("success", "Categoría actualizada");
 }
 
@@ -142,5 +146,66 @@ export async function deleteCategoryAction(formData: FormData) {
   }
 
   revalidatePath("/admin/categories");
+  updateTag("categories");
+  updateTag("catalog");
   redirectWithFeedback("success", "Categoría eliminada");
+}
+
+const reorderItemSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  displayOrder: z.coerce.number().int().min(0),
+});
+
+const reorderSchema = z.object({
+  items: z.array(reorderItemSchema).min(1),
+});
+
+export async function reorderCategoriesAction(payload: {
+  items: { id: number; displayOrder: number }[];
+}) {
+  await requireAdmin();
+
+  const parsed = reorderSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { ok: false as const, error: "Datos inválidos" };
+  }
+
+  const { items } = parsed.data;
+  const ids = items.map((item) => item.id);
+
+  try {
+    const existing = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(inArray(categories.id, ids));
+    const existingIds = new Set(existing.map((row) => row.id));
+    const validItems = items.filter((item) => existingIds.has(item.id));
+
+    if (validItems.length === 0) {
+      return { ok: false as const, error: "Categorías no encontradas" };
+    }
+
+    // Single transaction so a mid-batch failure rolls back the whole reorder.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(categories)
+        .set({ displayOrder: sql`-1` })
+        .where(inArray(categories.id, validItems.map((item) => item.id)));
+      for (const item of validItems) {
+        await tx
+          .update(categories)
+          .set({ displayOrder: item.displayOrder })
+          .where(eq(categories.id, item.id));
+      }
+    });
+  } catch (error) {
+    console.error("reorderCategoriesAction", error);
+    return { ok: false as const, error: "No pudimos reordenar las categorías" };
+  }
+
+  revalidatePath("/admin/categories");
+  updateTag("categories");
+  updateTag("catalog");
+  revalidatePath("/");
+  return { ok: true as const };
 }

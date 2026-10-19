@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
@@ -105,6 +105,7 @@ export async function createProductAction(formData: FormData) {
   }
 
   revalidatePath("/admin/products");
+  updateTag("catalog");
   redirectWithFeedback("success", "Producto creado correctamente");
 }
 
@@ -180,6 +181,7 @@ export async function updateProductAction(formData: FormData) {
   }
 
   revalidatePath("/admin/products");
+  updateTag("catalog");
   redirectWithFeedback("success", "Producto actualizado");
 }
 
@@ -202,6 +204,7 @@ export async function deleteProductAction(formData: FormData) {
   }
 
   revalidatePath("/admin/products");
+  updateTag("catalog");
   redirectWithFeedback("success", "Producto eliminado");
 }
 
@@ -280,5 +283,73 @@ export async function duplicateProductAction(formData: FormData) {
   }
 
   revalidatePath("/admin/products");
+  updateTag("catalog");
   redirectWithFeedback("success", "Producto duplicado");
+}
+
+const adjustStockSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  delta: z.coerce.number().int(),
+});
+
+/**
+ * Adjust a product's stock by a signed delta in a single conditional update.
+ *
+ * Why a conditional UPDATE?
+ *   - "Check stock, then decrement" is a TOCTOU race: two concurrent calls
+ *     can both read stock > 0 and both decrement, ending with negative stock.
+ *   - `UPDATE … SET stock = stock + ? WHERE id = ? AND stock + ? >= 0` makes
+ *     the precondition part of the write itself; if the row count is 0 the
+ *     update is rejected as "stock insuficiente" before any side effect.
+ *
+ * - delta > 0: restock (e.g. cancelaciones, devoluciones).
+ * - delta < 0: consume stock (ventas); must not exceed current stock.
+ *
+ * Always invalidates the storefront cache via `updateTag("catalog")` so the
+ * public home reflects the new stock on the very next visit; leftover stale
+ * snapshots cannot oversell.
+ */
+export async function adjustStockAction(payload: {
+  id: number;
+  delta: number;
+}): Promise<{ ok: boolean; stock?: number; error?: string }> {
+  await requireAdmin();
+
+  const parsed = adjustStockSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { ok: false, error: "Datos inválidos" };
+  }
+  if (parsed.data.delta === 0) {
+    return { ok: false, error: "El ajuste no puede ser cero" };
+  }
+
+  const { id, delta } = parsed.data;
+
+  // Atomic precondition: refuse the write if it would take stock negative.
+  //   stock + delta >= 0   ⇔   stock >= -delta
+  // For delta > 0, -delta < 0 and stock (>=0) trivially satisfies it, so
+  // restocks always go through; for delta < 0 the guard actually bites.
+  const updateResult = await db
+    .update(products)
+    .set({ stock: sql`${products.stock} + ${delta}` })
+    .where(
+      and(
+        eq(products.id, id),
+        gte(products.stock, -delta),
+      ),
+    )
+    .returning({ stock: products.stock });
+
+  if (updateResult.length === 0) {
+    return {
+      ok: false,
+      error:
+        delta < 0
+          ? "Stock insuficiente para realizar el ajuste"
+          : "No se pudo actualizar el stock",
+    };
+  }
+
+  updateTag("catalog");
+  return { ok: true, stock: updateResult[0].stock };
 }
