@@ -35,6 +35,25 @@ export const categories = sqliteTable("categories", {
     .default(sql`(strftime('%s','now'))`),
 });
 
+/**
+ * Registry of the sizes offered by the shop. `name` is the label the admin
+ * chose (shown in the storefront filter), `matchKey` is the canonical key
+ * every variant of that size resolves to ("3-6M", "3-6 meses" → "3-6").
+ * `displayOrder` drives the order of the size chips in the storefront filter.
+ */
+export const sizes = sqliteTable("sizes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  matchKey: text("match_key").notNull().unique(),
+  displayOrder: integer("display_order").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(strftime('%s','now'))`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(strftime('%s','now'))`),
+});
+
 export const products = sqliteTable("products", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
@@ -116,4 +135,9 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 
 export const usersRelations = relations(users, () => ({
   // Placeholder for future relations (orders, carts, etc.)
+}));
+
+export const sizesRelations = relations(sizes, () => ({
+  // The registry stands on its own: the sizes of a product are stored as
+  // free text on `products.sizes`, not as a relation.
 }));

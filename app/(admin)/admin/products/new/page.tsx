@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { asc } from "drizzle-orm";
 import { ChevronLeftIcon } from "lucide-react";
 
-import { db } from "@/lib/db";
-import { categories } from "@/db/schema";
+import { loadCategories } from "@/lib/categories";
+import { loadSizes } from "@/lib/sizes";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -14,12 +13,14 @@ import { ToastFeedback } from "@/components/admin/toast-feedback";
 import { createProductAction } from "../actions";
 
 export default async function NewProductPage() {
-  const categoryList = await db
-    .select({ id: categories.id, name: categories.name })
-    .from(categories)
-    .orderBy(asc(categories.displayOrder), asc(categories.name));
-
-  const categoryOptions: CategoryOption[] = categoryList;
+  const [categoryRows, sizeRows] = await Promise.all([
+    loadCategories(),
+    loadSizes(),
+  ]);
+  const categoryOptions: CategoryOption[] = categoryRows.map(
+    ({ id, name }) => ({ id, name }),
+  );
+  const sizeSuggestions = sizeRows.map((size) => size.name);
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,6 +48,7 @@ export default async function NewProductPage() {
         mode="create"
         action={createProductAction}
         categoryList={categoryOptions}
+        sizeSuggestions={sizeSuggestions}
         cancelHref="/admin/products"
       />
     </div>

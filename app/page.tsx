@@ -1,10 +1,15 @@
 import { Suspense } from "react";
-import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
-import { and, asc, desc, eq, gt } from "drizzle-orm";
 
-import { db } from "@/lib/db";
-import { categories, products } from "@/db/schema";
+import { loadCategories } from "@/lib/categories";
+import { loadVisibleProducts, type StorefrontProductRecord } from "@/lib/products";
+import { loadSizes } from "@/lib/sizes";
+import {
+  collectSizeFilters,
+  normalizeSizeToken,
+  sizeKeysFromCsv,
+  type SizeRegistryEntry,
+} from "@/lib/size-tokens";
 import type { CatalogProduct } from "@/components/catalog/product-card";
 import type { FilterOption } from "@/components/catalog/product-filters";
 import { env } from "@/lib/env";
@@ -16,86 +21,29 @@ type StorefrontSearchParams = {
   page?: string;
   category?: string;
   search?: string;
+  /** Repeated params (`?size=2A&size=3A`) or a comma separated list. */
+  size?: string | string[];
 };
+
+/** Fallback size for products without a `sizes` value (matches the product card). */
+const SIZE_FALLBACK_LABEL = "Única";
+
+/** Canonical key of the fallback size. */
+const SIZE_FALLBACK_KEY = "ÚNICA";
 
 // ----------------------------------------------------------------------------
 // Storefront data fetchers.
 //
-// Wrapped in Next 16's `"use cache"` so repeated home-page hits reuse the same
-// cached snapshot instead of hammering Turso. Server actions on the admin side
-// call `revalidateTag("catalog", "max")` / `revalidateTag("categories", "max")`
-// to drop the corresponding cache entries whenever a row changes.
+// `loadCategories()` / `loadVisibleProducts()` live in `@/lib/*` and are
+// wrapped in Next 16's `"use cache"`, so repeated home-page hits reuse the
+// same cached snapshot instead of hammering Turso. Server actions on the admin
+// side call `updateTag("categories")` / `updateTag("catalog")` to drop the
+// corresponding cache entries whenever a row changes.
 //
 // We cache the *raw* visible dataset (categories + products w/ their joined
 // categories) and do filtering / pagination in memory: the catalog is a small
 // boutique, so the cost is negligible and the cache key stays trivial.
 // ----------------------------------------------------------------------------
-
-interface StorefrontCategoryRow {
-  id: number;
-  name: string;
-  slug: string;
-  description: string | null;
-  coverImageUrl: string | null;
-  highlightColor: string | null;
-  displayOrder: number | null;
-}
-
-interface StorefrontProductRow {
-  id: number;
-  name: string;
-  slug: string;
-  summary: string | null;
-  description: string | null;
-  priceCents: number;
-  currency: string;
-  stock: number;
-  sku: string;
-  sizes: string | null;
-  isFeatured: boolean;
-  metadata: string | null;
-  createdAt: Date;
-  productCategories: {
-    productId: number;
-    categoryId: number;
-    category: { name: string; slug: string } | null;
-  }[];
-}
-
-async function loadStorefrontCategories(): Promise<StorefrontCategoryRow[]> {
-  "use cache";
-  cacheTag("categories");
-  cacheLife("hours");
-
-  return db
-    .select({
-      id: categories.id,
-      name: categories.name,
-      slug: categories.slug,
-      description: categories.description,
-      coverImageUrl: categories.coverImageUrl,
-      highlightColor: categories.highlightColor,
-      displayOrder: categories.displayOrder,
-    })
-    .from(categories)
-    .orderBy(asc(categories.displayOrder), asc(categories.name));
-}
-
-async function loadVisibleProducts(): Promise<StorefrontProductRow[]> {
-  "use cache";
-  cacheTag("catalog");
-  cacheLife("hours");
-
-  return db.query.products.findMany({
-    where: and(eq(products.isVisible, true), gt(products.stock, 0)),
-    orderBy: desc(products.createdAt),
-    with: {
-      productCategories: {
-        with: { category: true },
-      },
-    },
-  }) as unknown as StorefrontProductRow[];
-}
 
 export default function Home({
   searchParams,
@@ -129,10 +77,12 @@ async function CatalogView({
   const requestedPage = Math.max(1, Number(resolvedParams.page ?? "1") || 1);
   const requestedCategory = resolvedParams.category?.trim() ?? "";
   const searchQuery = resolvedParams.search?.trim() ?? "";
+  const requestedSizes = parseSizeParams(resolvedParams.size);
 
-  const [categoryRows, visibleProducts] = await Promise.all([
-    loadStorefrontCategories(),
+  const [categoryRows, visibleProducts, sizeRegistry] = await Promise.all([
+    loadCategories(),
     loadVisibleProducts(),
+    loadSizes(),
   ]);
 
   const matchedCategory = requestedCategory
@@ -143,7 +93,7 @@ async function CatalogView({
 
   // Apply all storefront filters in memory over the cached visible-products
   // snapshot. The dataset is small (boutique catalog) so this stays cheap.
-  const filtered = invalidCategoryFilter
+  const categoryAndSearchFiltered = invalidCategoryFilter
     ? []
     : visibleProducts.filter((product) => {
         if (matchedCategory) {
@@ -166,6 +116,31 @@ async function CatalogView({
         return true;
       });
 
+  // Sizes are scoped to the current category/search result set: a shoe size
+  // is useless for the flannel tops that live in another category, so the
+  // option only shows up when at least one product in scope carries it.
+  // The order comes from the registry the admin maintains in
+  // `/admin/sizes`; sizes that are not registered keep a natural order at
+  // the end.
+  const sizeFilters: FilterOption[] = collectSizeFilters(
+    categoryAndSearchFiltered,
+    sizeRegistry,
+    SIZE_FALLBACK_KEY,
+  ).map((size) => ({ value: size.key, label: size.label }));
+
+  const availableSizes = new Set(sizeFilters.map((option) => option.value));
+  // A size that does not exist in the current scope cannot narrow anything
+  // down, so it is dropped instead of emptying the catalog.
+  const selectedSizes = requestedSizes.filter((size) =>
+    availableSizes.has(size),
+  );
+
+  const filtered = selectedSizes.length
+    ? categoryAndSearchFiltered.filter((product) =>
+        productSizeKeys(product).some((key) => selectedSizes.includes(key)),
+      )
+    : categoryAndSearchFiltered;
+
   const totalProducts = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
   const currentPage = Math.min(requestedPage, totalPages);
@@ -173,7 +148,7 @@ async function CatalogView({
   const pageRows = filtered.slice(offset, offset + PAGE_SIZE);
 
   const catalogProducts: CatalogProduct[] = pageRows.map((product) =>
-    toCatalogProduct(product),
+    toCatalogProduct(product, sizeRegistry),
   );
 
   const categoryFilters: FilterOption[] = categoryRows.map((category) => ({
@@ -186,6 +161,8 @@ async function CatalogView({
     <CatalogSection
       products={catalogProducts}
       categories={categoryFilters}
+      sizes={sizeFilters}
+      selectedSizes={selectedSizes}
       totalItems={totalProducts}
       pageSize={PAGE_SIZE}
       currentPage={currentPage}
@@ -221,11 +198,14 @@ function CatalogSkeleton() {
   );
 }
 
-function toCatalogProduct(product: StorefrontProductRow): CatalogProduct {
+function toCatalogProduct(
+  product: StorefrontProductRecord,
+  registry: SizeRegistryEntry[],
+): CatalogProduct {
   const metadata = product.metadata ? safeJson(product.metadata) : null;
   const imageUrl =
     typeof metadata?.imageUrl === "string" ? metadata.imageUrl : undefined;
-  const sizes = splitCommaValues(product.sizes);
+  const sizes = sortSizes(splitCommaValues(product.sizes), registry);
   const linkedCategories = (product.productCategories ?? []).flatMap((link) =>
     link.category
       ? [{ name: link.category.name, slug: link.category.slug }]
@@ -243,10 +223,37 @@ function toCatalogProduct(product: StorefrontProductRow): CatalogProduct {
     price: product.priceCents / 100,
     currency: product.currency ?? "EUR",
     stock: product.stock,
-    sizes: sizes.length ? sizes : ["Única"],
+    sizes: sizes.length ? sizes : [SIZE_FALLBACK_LABEL],
     imageUrl,
     label: product.isFeatured ? "Destacado" : undefined,
   };
+}
+
+/**
+ * Orders the sizes of a product card like the registry does, so the badges
+ * of a product follow the same order as the filter chips.
+ */
+function sortSizes(
+  tokens: string[],
+  registry: SizeRegistryEntry[],
+): string[] {
+  const rank = new Map(
+    registry.map((size, index) => [size.matchKey, index] as const),
+  );
+
+  return tokens
+    .map((token, index) => ({
+      token,
+      index,
+      rank: rank.get(normalizeSizeToken(token)),
+    }))
+    .sort((a, b) => {
+      if (a.rank !== undefined && b.rank !== undefined) return a.rank - b.rank;
+      if (a.rank !== undefined) return -1;
+      if (b.rank !== undefined) return 1;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.token);
 }
 
 function splitCommaValues(value?: string | null) {
@@ -256,6 +263,29 @@ function splitCommaValues(value?: string | null) {
       .map((item) => item.trim())
       .filter(Boolean) ?? []
   );
+}
+
+/**
+ * Canonical keys of the sizes of a product. Used to match a product against
+ * the size selected in the filter.
+ */
+function productSizeKeys(product: StorefrontProductRecord): string[] {
+  const keys = sizeKeysFromCsv(product.sizes);
+  return keys.length ? keys : [SIZE_FALLBACK_KEY];
+}
+
+/**
+ * Reads `?size=3-6&size=6-9` (repeated) or `?size=3-6,6-9` into canonical
+ * size keys. The keys are normalized the same way the products are, so a
+ * hand-written `?size=3-6m` still matches the size "3-6".
+ */
+function parseSizeParams(value?: string | string[]): string[] {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  const keys = raw
+    .flatMap((entry) => entry.split(","))
+    .map((entry) => normalizeSizeToken(entry))
+    .filter(Boolean);
+  return [...new Set(keys)];
 }
 
 function safeJson(value: string) {

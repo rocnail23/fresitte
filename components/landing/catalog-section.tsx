@@ -7,6 +7,8 @@ import type { FilterOption } from "@/components/catalog/product-filters";
 interface CatalogSectionProps {
   products: CatalogProduct[];
   categories: FilterOption[];
+  sizes: FilterOption[];
+  selectedSizes: string[];
   totalItems: number;
   pageSize: number;
   currentPage: number;
@@ -18,6 +20,7 @@ interface CatalogSectionProps {
 
 export function CatalogSection(props: CatalogSectionProps) {
   const empty = props.products.length === 0;
+  const selectedSizes = props.selectedSizes ?? [];
   const whatsappHref = props.whatsappNumber
     ? `https://wa.me/${props.whatsappNumber.replace(/[^0-9]/g, "")}`
     : null;
@@ -32,7 +35,9 @@ export function CatalogSection(props: CatalogSectionProps) {
         {empty ? (
           <EmptyState
             hasActiveFilters={
-              Boolean(props.selectedCategory) || Boolean(props.searchTerm)
+              Boolean(props.selectedCategory) ||
+              Boolean(props.searchTerm) ||
+              selectedSizes.length > 0
             }
             whatsappHref={whatsappHref}
           />
@@ -40,6 +45,8 @@ export function CatalogSection(props: CatalogSectionProps) {
           <CatalogGrid
             products={props.products}
             categories={props.categories}
+            sizes={props.sizes ?? []}
+            selectedSizes={selectedSizes}
             whatsappNumber={props.whatsappNumber}
             pagination={{
               currentPage: props.currentPage,

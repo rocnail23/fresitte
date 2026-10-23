@@ -20,6 +20,7 @@ import {
 import { CategoryEditDrawer } from "@/components/admin/category/category-edit-drawer";
 import { ConfirmDeleteDialog } from "@/components/admin/confirm-delete-dialog";
 import { EmptyState } from "@/components/admin/empty-state";
+import { useSortableOrder } from "@/components/admin/use-sortable-order";
 
 export interface SortableCategory {
   id: number;
@@ -36,8 +37,6 @@ interface CategorySortableListProps {
   categories: SortableCategory[];
 }
 
-type MoveDirection = "up" | "down";
-
 function toFormValues(category: SortableCategory): CategoryFormValues {
   return {
     id: category.id,
@@ -52,19 +51,29 @@ function toFormValues(category: SortableCategory): CategoryFormValues {
 
 export function CategorySortableList({ categories }: CategorySortableListProps) {
   const router = useRouter();
-  const [order, setOrder] = React.useState<SortableCategory[]>(categories);
-  const [isSaving, setIsSaving] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = React.useState<number | null>(
     null,
   );
-  const [dragId, setDragId] = React.useState<number | null>(null);
-  const [overId, setOverId] = React.useState<number | null>(null);
 
-  // Sync external reorders (server refresh after create/edit/delete).
-  React.useEffect(() => {
-    setOrder(categories);
-  }, [categories]);
+  const persist = React.useCallback(
+    (items: { id: number; displayOrder: number }[]) =>
+      reorderCategoriesAction({ items }),
+    [],
+  );
+
+  const {
+    order,
+    isSaving,
+    dragId,
+    overId,
+    move,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+  } = useSortableOrder<SortableCategory>({ items: categories, persist });
 
   const editingCategory = order.find((category) => category.id === editingId);
   const pendingDelete = order.find((category) => category.id === pendingDeleteId);
@@ -72,107 +81,6 @@ export function CategorySortableList({ categories }: CategorySortableListProps) 
   const refresh = React.useCallback(() => {
     router.refresh();
   }, [router]);
-
-  const persist = React.useCallback(
-    async (next: SortableCategory[]) => {
-      setIsSaving(true);
-      const payload = {
-        items: next.map((category, index) => ({
-          id: category.id,
-          displayOrder: index,
-        })),
-      };
-      const result = await reorderCategoriesAction(payload);
-      setIsSaving(false);
-      if (!result.ok) {
-        toast.error(result.error);
-        setOrder(categories);
-        return;
-      }
-      toast.success("Orden guardado");
-      refresh();
-    },
-    [categories, refresh],
-  );
-
-  const move = React.useCallback(
-    (id: number, direction: MoveDirection) => {
-      const index = order.findIndex((category) => category.id === id);
-      if (index === -1) return;
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= order.length) return;
-      const next = order.slice();
-      const [moved] = next.splice(index, 1);
-      next.splice(targetIndex, 0, moved);
-      setOrder(next);
-      void persist(next);
-    },
-    [order, persist],
-  );
-
-  const reorderTo = React.useCallback(
-    (sourceId: number, targetId: number) => {
-      if (sourceId === targetId) return;
-      const sourceIndex = order.findIndex(
-        (category) => category.id === sourceId,
-      );
-      const targetIndex = order.findIndex(
-        (category) => category.id === targetId,
-      );
-      if (sourceIndex === -1 || targetIndex === -1) return;
-      const next = order.slice();
-      const [moved] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, moved);
-      setOrder(next);
-      void persist(next);
-    },
-    [order, persist],
-  );
-
-  const handleDragStart = (
-    event: React.DragEvent<HTMLElement>,
-    id: number,
-  ) => {
-    if (isSaving) {
-      event.preventDefault();
-      return;
-    }
-    setDragId(id);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", String(id));
-  };
-
-  const handleDragOver = (
-    event: React.DragEvent<HTMLElement>,
-    overCategoryId: number,
-  ) => {
-    if (dragId == null) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    if (overId !== overCategoryId) setOverId(overCategoryId);
-  };
-
-  const handleDragLeave = (overCategoryId: number) => {
-    if (overId === overCategoryId) setOverId(null);
-  };
-
-  const handleDrop = (
-    event: React.DragEvent<HTMLElement>,
-    targetId: number,
-  ) => {
-    event.preventDefault();
-    const sourceId =
-      dragId ?? Number(event.dataTransfer.getData("text/plain"));
-    setDragId(null);
-    setOverId(null);
-    if (!Number.isFinite(sourceId) || sourceId === targetId) return;
-    reorderTo(sourceId, targetId);
-  };
-
-  const handleDragEnd = () => {
-    setDragId(null);
-    setOverId(null);
-  };
 
   const handleDelete = async (id: number) => {
     const formData = new FormData();

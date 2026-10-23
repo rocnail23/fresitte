@@ -15,6 +15,11 @@ interface ChipInputProps {
   className?: string;
   /** Normalize a raw token; useful for uppercasing ("2a" -> "2A"). */
   format?: (token: string) => string;
+  /**
+   * Suggestions offered while typing. A suggestion is hidden as soon as it
+   * is already a chip.
+   */
+  suggestions?: string[];
 }
 
 /**
@@ -24,6 +29,7 @@ interface ChipInputProps {
  *  - Backspace on empty input deletes the last chip.
  *  - ArrowLeft / ArrowRight navigates chips.
  *  - the hidden `<input name={name}>` reflects CSV for server actions.
+ *  - optional suggestions that fill the input when clicked.
  */
 export function ChipInput({
   name,
@@ -34,6 +40,7 @@ export function ChipInput({
   disabled,
   className,
   format,
+  suggestions = [],
 }: ChipInputProps) {
   const [input, setInput] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -89,6 +96,17 @@ export function ChipInput({
     }
   };
 
+  // Suggestions that are not chips yet and match what has been typed.
+  const matchingSuggestions = React.useMemo(() => {
+    const needle = input.trim().toUpperCase();
+    return suggestions
+      .filter((suggestion) => !tokens.includes(suggestion))
+      .filter((suggestion) =>
+        needle ? suggestion.toUpperCase().includes(needle) : true,
+      )
+      .slice(0, 8);
+  }, [input, suggestions, tokens]);
+
   return (
     <div
       className={cn(
@@ -133,6 +151,24 @@ export function ChipInput({
         }}
       />
       <input type="hidden" name={name} value={tokens.join(",")} />
+
+      {matchingSuggestions.length > 0 ? (
+        <div className="flex w-full flex-wrap gap-1.5 pt-1">
+          {matchingSuggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                commit(suggestion);
+              }}
+              className="rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

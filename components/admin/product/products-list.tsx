@@ -38,6 +38,8 @@ export interface ManagedProduct {
 interface ProductsListProps {
   products: ManagedProduct[];
   categoryList: CategoryOption[];
+  /** Sizes already registered, offered as suggestions in the size field. */
+  sizeSuggestions?: string[];
 }
 
 function toFormValues(product: ManagedProduct): ProductFormValues {
@@ -60,7 +62,11 @@ function toFormValues(product: ManagedProduct): ProductFormValues {
   };
 }
 
-export function ProductsList({ products, categoryList }: ProductsListProps) {
+export function ProductsList({
+  products,
+  categoryList,
+  sizeSuggestions = [],
+}: ProductsListProps) {
   const router = useRouter();
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = React.useState<number | null>(
@@ -131,6 +137,7 @@ export function ProductsList({ products, categoryList }: ProductsListProps) {
         }}
         action={updateProductAction}
         categoryList={categoryList}
+        sizeSuggestions={sizeSuggestions}
         initialValues={
           editingProduct ? toFormValues(editingProduct) : ({} as ProductFormValues)
         }

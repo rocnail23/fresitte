@@ -24,16 +24,18 @@ Data flow for admin writes: `<form action={serverAction}>` → `requireAdmin()` 
 
 | Path | Purpose |
 |---|---|
-| `app/` | Next.js App Router. Subtrees: `(admin)/admin/{products,categories}/` (CRUD), `login/`, `api/auth/[...nextauth]/`. Server actions live in `actions.ts` siblings of their page. |
+| `app/` | Next.js App Router. Subtrees: `(admin)/admin/{products,categories,sizes}/` (CRUD), `login/`, `api/auth/[...nextauth]/`. Server actions live in `actions.ts` siblings of their page. |
 | `app/(admin)/admin/_components/` | Route-group-private components (admin shell widgets). Underscore prefix keeps them off the route surface. |
 | `components/catalog/` | Client-side storefront: `catalog-grid.tsx` (cart + sheet), `product-card.tsx`, `product-filters.tsx`. |
 | `components/admin/` | Admin-only client components (`sign-out-button.tsx`). |
+| `components/admin/use-sortable-order.ts` | Shared drag & drop reorder hook used by the categories and sizes lists. |
 | `components/landing/` | Homepage hero/value props client components. |
 | `components/ui/` | **shadcn primitives only** (`button`, `input`, `select`, `textarea`, `badge`, `card`, `sheet`, `accordion`, `navigation-menu`). Add new primitives via `npx shadcn@latest add <name>`; do not hand-author. |
-| `lib/` | Cross-cutting helpers: `db.ts` (singleton Drizzle), `env.ts` (Zod-validated env), `auth.ts` (session helpers + `requireAdmin`), `password.ts` (scrypt), `r2.ts` (R2 upload), `utils.ts` (`cn`). |
-| `db/schema.ts` | Drizzle SQLite schema: `users`, `categories`, `products`, `productImages` + relations. Snake-case casing. |
+| `lib/` | Cross-cutting helpers: `db.ts` (singleton Drizzle), `env.ts` (Zod-validated env), `auth.ts` (session helpers + `requireAdmin`), `password.ts` (scrypt), `r2.ts` (R2 upload), `utils.ts` (`cn`), `sizes.ts` (size registry loader + `syncProductSizes`), `size-tokens.ts` (pure size-key helpers). |
+| `db/schema.ts` | Drizzle SQLite schema: `users`, `categories`, `products`, `productImages`, `sizes` + relations. Snake-case casing. |
 | `migrations/` | Generated Drizzle SQL output (`0001_old_zodiak.sql`, `meta/`). `drizzle/` is journal-only. |
 | `scripts/seed-admin.ts` | Standalone `tsx` script that inserts the admin user (idempotent by email). |
+| `scripts/seed-sizes.ts` | Registers the sizes used by the products that are missing from the registry (idempotent). |
 | `types/next-auth.d.ts` | Module augmentation: `Session.user.id/role`, `User.id/role`, `JWT.role?`. |
 | `auth.config.ts` | NextAuth `authOptions` (Credentials provider, JWT session strategy, role callbacks). Imported by the catch-all route handler. |
 | `proxy.ts` | Edge-style route guard for `/admin/:path*` and `/login`. **Note**: filename is `proxy.ts`, not Next.js's conventional `middleware.ts`; verify Next 16 picks it up before relying on it. The auth gate inside `app/(admin)/admin/layout.tsx` is the authoritative guard. |
@@ -54,6 +56,7 @@ npm run db:generate  # drizzle-kit generate (emits SQL into ./migrations)
 npm run db:migrate   # drizzle-kit push (applies schema to Turso)
 npm run db:studio    # drizzle-kit studio --port 8787
 npm run db:seed      # tsx scripts/seed-admin.ts (creates admin from .env)
+npm run db:seed-sizes # tsx scripts/seed-sizes.ts (registers the catalog sizes)
 ```
 
 First-run provisioning: create Turso DB → fill `.env` from `example.env` → `db:generate` + `db:migrate` → `db:seed` → `npm run dev`. Login at `/login` with the seeded admin.
@@ -64,6 +67,7 @@ First-run provisioning: create Turso DB → fill `.env` from `example.env` → `
 - **Server actions are the only mutation surface.** They live in `actions.ts` siblings of the page that consumes them, start with `"use server"`, validate input with Zod, gate on `requireAdmin()`, and finish with `revalidatePath(...)` + `redirect(...?status=...&message=...)`. **They never `throw` to the UI** — feedback flows through query params.
 - **Validation:** Zod everywhere (`auth.config.ts`, env, server actions). `lib/env.ts` throws on invalid env at boot.
 - **Slugification:** `app/(admin)/admin/{products,categories}/actions.ts` slugify names client-side before insert/update; DB enforces `slug` UNIQUE.
+- **Size registry:** the `sizes` table is the ordered list the admin edits at `/admin/sizes`. `name` is the customer-facing label, `matchKey` is the canonical key every spelling resolves to (`normalizeSizeToken` in `lib/size-tokens.ts`), and `displayOrder` drives the storefront filter. Product sizes stay free text in `products.sizes` (CSV); `syncProductSizes()` (`lib/sizes.ts`) registers unknown sizes at the end of the list and rewrites each token with the registry label. The `sizes` cache tag is expired by every write that touches the registry or a product's sizes.
 - **Casing:** schema columns are `snake_case` via Drizzle's `casing: "snake_case"` in `lib/db.ts`. Always reference TypeScript fields in `camelCase` (`passwordHash`, `coverImageUrl`, `priceCents`).
 - **Auth flow:** NextAuth v4 credentials provider, JWT sessions. `auth.config.ts` defines `authOptions`; `app/api/auth/[...nextauth]/route.ts` instantiates `NextAuth(authOptions)`. `lib/auth.ts` exposes React-`cache`-memoized `getSession`, `getCurrentUser`, `requireAdmin`. **Always** call `requireAdmin()` at the top of admin server actions, even though the layout also gates — defense in depth.
 - **Role augmentation** is declared in `types/next-auth.d.ts`; the `jwt`/`session` callbacks in `auth.config.ts` propagate `role`. Treat `session.user.role` as `"admin" | "customer"`.
@@ -83,7 +87,7 @@ First-run provisioning: create Turso DB → fill `.env` from `example.env` → `
 | `app/providers.tsx` | Single `QueryClientProvider`; the only consumer-of-React-Query entry point. |
 | `app/page.tsx` | Storefront server component — the public surface. |
 | `app/(admin)/admin/layout.tsx` | **Authoritative auth gate** (`requireAdmin`) + admin chrome. |
-| `app/(admin)/admin/{products,categories}/page.tsx` + sibling `actions.ts` | CRUD pairs; both are coupled — edit both sides together. |
+| `app/(admin)/admin/{products,categories,sizes}/page.tsx` + sibling `actions.ts` | CRUD pairs; both are coupled — edit both sides together. |
 | `app/login/page.tsx` | Client-side `signIn("credentials", …)`. |
 | `app/api/auth/[...nextauth]/route.ts` | NextAuth GET/POST handler. |
 | `auth.config.ts` | NextAuth `authOptions` (Credentials + JWT + role callbacks). |
@@ -92,12 +96,15 @@ First-run provisioning: create Turso DB → fill `.env` from `example.env` → `
 | `lib/auth.ts` | `getSession` / `getCurrentUser` / `requireAdmin`. |
 | `lib/password.ts` | scrypt hash + constant-time verify. |
 | `lib/r2.ts` | `uploadImageToR2({ keyPrefix: "categories" \| "products", file })`. |
+| `lib/sizes.ts` | `loadSizes()` (cached registry) + `syncProductSizes()` (registers unknown sizes, rewrites the product CSV). |
+| `lib/size-tokens.ts` | Pure helpers: `normalizeSizeToken`, `deriveSizeKey`, `splitSizeTokens`, `replaceSizeToken`, `collectSizeFilters`, `defaultSizeRank`. |
 | `db/schema.ts` | Source of truth for tables/relations. Edit here, then `db:generate` + `db:migrate`. |
 | `types/next-auth.d.ts` | Module augmentation for `Session.user.role`, `JWT.role?`. |
 | `drizzle.config.ts` | `dialect: "turso"`, schema `./db/schema.ts`, out `./migrations`. |
 | `next.config.ts` | `experimental.serverActions.bodySizeLimit: "30mb"`, `images.remotePatterns: [{ https, "*" }]`. |
 | `proxy.ts` | Edge guard for `/admin/:path*` and `/login`; belt-and-braces alongside `requireAdmin`. |
 | `scripts/seed-admin.ts` | Idempotent admin seeder — uses `AUTH_ADMIN_EMAIL`/`AUTH_ADMIN_PASSWORD` from `.env`. |
+| `scripts/seed-sizes.ts` | Idempotent size-registry seeder — registers the sizes the catalog uses. |
 
 ## Runtime/Tooling Preferences
 

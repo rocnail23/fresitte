@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { ShoppingBag, Sparkles, Expand } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -57,14 +56,14 @@ export function ProductCard({ product, onAddToCart, priority }: ProductCardProps
             aria-label={`Ampliar imagen de ${product.name}`}
             className="group/image relative block aspect-[4/5] w-full text-left"
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={product.imageUrl}
               alt={product.name}
               loading={priority ? "eager" : "lazy"}
-              priority={priority}
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition duration-500 group-hover/image:scale-[1.03]"
+              fetchPriority={priority ? "high" : "auto"}
+              decoding="async"
+              className="absolute inset-0 size-full object-cover transition duration-500 group-hover/image:scale-[1.03]"
             />
             <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/35 via-black/0" />
             <span className="pointer-events-none absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-foreground/80 opacity-0 shadow-md transition group-hover/image:opacity-100 sm:right-3 sm:top-3">

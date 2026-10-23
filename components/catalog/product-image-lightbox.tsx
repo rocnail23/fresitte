@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -216,19 +215,19 @@ export function ProductImageLightbox() {
         ) : null}
 
         <div className="relative flex h-full max-h-[75vh] w-full max-w-3xl items-center justify-center">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             key={currentSrc}
             src={currentSrc}
             alt={state.alt}
-            fill
-            sizes="(max-width: 768px) 100vw, 720px"
+            decoding="async"
             className={cn(
-              "select-none transition-opacity ease-out",
+              "absolute inset-0 size-full select-none object-contain transition-opacity ease-out",
               phase === "open"
                 ? "opacity-100 duration-[300ms]"
                 : "opacity-0 duration-[160ms]",
             )}
-            style={{ objectFit: "contain", touchAction: "pinch-zoom" }}
+            style={{ touchAction: "pinch-zoom" }}
             draggable={false}
           />
         </div>

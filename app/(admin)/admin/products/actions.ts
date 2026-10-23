@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { and, eq, gte, sql } from "drizzle-orm";
@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { productCategories, products } from "@/db/schema";
 import { uploadImageToR2 } from "@/lib/r2";
+import { syncProductSizes } from "@/lib/sizes";
 
 const productBaseSchema = z.object({
   name: z.string().min(3),
@@ -72,6 +73,10 @@ export async function createProductAction(formData: FormData) {
     }
   }
 
+  // New sizes join the registry and every token is rewritten to the label
+  // the admin chose, so the catalog shows one name per size.
+  const sizesSync = await syncProductSizes(values.sizes);
+
   try {
     await db.transaction(async (tx) => {
       const [inserted] = await tx
@@ -84,7 +89,7 @@ export async function createProductAction(formData: FormData) {
           description: values.description || null,
           stock: values.stock ?? 1,
           sku,
-          sizes: values.sizes?.trim() ? values.sizes : null,
+          sizes: sizesSync.value,
           isVisible: values.isVisible ?? true,
           isFeatured: values.isFeatured ?? false,
           metadata: imageUrl ? JSON.stringify({ imageUrl }) : null,
@@ -104,8 +109,10 @@ export async function createProductAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos crear el producto. Revisa que el nombre no esté duplicado.");
   }
 
-  revalidatePath("/admin/products");
   updateTag("catalog");
+  if (sizesSync.added > 0) {
+    updateTag("sizes");
+  }
   redirectWithFeedback("success", "Producto creado correctamente");
 }
 
@@ -146,6 +153,10 @@ export async function updateProductAction(formData: FormData) {
     }
   }
 
+  // New sizes join the registry and every token is rewritten to the label
+  // the admin chose, so the catalog shows one name per size.
+  const sizesSync = await syncProductSizes(values.sizes);
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -158,7 +169,7 @@ export async function updateProductAction(formData: FormData) {
           description: values.description || null,
           stock: values.stock ?? 1,
           sku,
-          sizes: values.sizes?.trim() ? values.sizes : null,
+          sizes: sizesSync.value,
           isVisible: values.isVisible ?? true,
           isFeatured: values.isFeatured ?? false,
           metadata: imageUrl ? JSON.stringify({ imageUrl }) : null,
@@ -180,8 +191,10 @@ export async function updateProductAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos actualizar el producto");
   }
 
-  revalidatePath("/admin/products");
   updateTag("catalog");
+  if (sizesSync.added > 0) {
+    updateTag("sizes");
+  }
   redirectWithFeedback("success", "Producto actualizado");
 }
 
@@ -203,7 +216,6 @@ export async function deleteProductAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos eliminar el producto");
   }
 
-  revalidatePath("/admin/products");
   updateTag("catalog");
   redirectWithFeedback("success", "Producto eliminado");
 }
@@ -282,7 +294,6 @@ export async function duplicateProductAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos duplicar el producto");
   }
 
-  revalidatePath("/admin/products");
   updateTag("catalog");
   redirectWithFeedback("success", "Producto duplicado");
 }

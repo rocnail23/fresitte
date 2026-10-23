@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { desc, eq, like, and } from "drizzle-orm";
 import { PlusIcon } from "lucide-react";
 
-import { db } from "@/lib/db";
-import { categories, products } from "@/db/schema";
+import { loadCategories } from "@/lib/categories";
+import { loadAdminProducts } from "@/lib/products";
+import { loadSizes } from "@/lib/sizes";
 import { Button } from "@/components/ui/button";
 
 import { ProductListToolbar } from "@/components/admin/product/product-list-toolbar";
@@ -17,7 +17,14 @@ type SearchParams = {
   message?: string;
 };
 
-const FILTERS = new Set(["all", "visible", "hidden", "featured"]);
+type ProductFilter = "all" | "visible" | "hidden" | "featured";
+
+const FILTERS: Record<string, ProductFilter> = {
+  all: "all",
+  visible: "visible",
+  hidden: "hidden",
+  featured: "featured",
+};
 
 export default async function AdminProductsPage({
   searchParams,
@@ -26,62 +33,26 @@ export default async function AdminProductsPage({
 }) {
   const resolved = (await searchParams) ?? {};
   const query = resolved.q?.trim() ?? "";
-  const filterRaw = resolved.filter ?? "all";
-  const filter = (FILTERS.has(filterRaw) ? filterRaw : "all") as
-    | "all"
-    | "visible"
-    | "hidden"
-    | "featured";
+  const filter: ProductFilter = FILTERS[resolved.filter ?? "all"] ?? "all";
 
-  const categoryList = await db
-    .select({ id: categories.id, name: categories.name })
-    .from(categories)
-    .orderBy(categories.displayOrder, categories.name);
+  const [categoryRows, productRows, sizeRows] = await Promise.all([
+    loadCategories(),
+    loadAdminProducts(),
+    loadSizes(),
+  ]);
 
-  const conditions = [];
-  if (query) {
-    conditions.push(like(products.name, `%${query}%`));
-  }
-  if (filter === "visible") conditions.push(eq(products.isVisible, true));
-  if (filter === "hidden") conditions.push(eq(products.isVisible, false));
-  if (filter === "featured") conditions.push(eq(products.isFeatured, true));
+  const categoryList = categoryRows.map(({ id, name }) => ({ id, name }));
+  const sizeSuggestions = sizeRows.map((size) => size.name);
 
-  const where = conditions.length === 0
-    ? undefined
-    : conditions.length === 1
-      ? conditions[0]
-      : and(...conditions);
-
-  const rows = await db.query.products.findMany({
-    where,
-    orderBy: desc(products.createdAt),
-    with: {
-      productCategories: { with: { category: true } },
-    },
-  });
-
-  const productList = rows.map((product) => {
-    const metadata = product.metadata ? safeParse(product.metadata) : null;
-    return {
-      id: product.id,
-      name: product.name,
-      slug: product.slug,
-      priceCents: product.priceCents,
-      currency: product.currency ?? null,
-      stock: product.stock,
-      summary: product.summary ?? null,
-      description: product.description ?? null,
-      sizes: product.sizes ?? null,
-      isVisible: product.isVisible,
-      isFeatured: product.isFeatured,
-      imageUrl: metadata?.imageUrl ?? null,
-      categoryNames: (product.productCategories ?? []).flatMap((link) =>
-        link.category ? [link.category.name] : [],
-      ),
-      categoryIds: (product.productCategories ?? []).flatMap((link) =>
-        link.category ? [link.category.id] : [],
-      ),
-    };
+  // Filtering runs in memory over the cached snapshot: the catalog is a small
+  // boutique, so the cost is negligible and the cache key stays trivial.
+  const needle = query.toLowerCase();
+  const productList = productRows.filter((product) => {
+    if (needle && !product.name.toLowerCase().includes(needle)) return false;
+    if (filter === "visible") return product.isVisible;
+    if (filter === "hidden") return !product.isVisible;
+    if (filter === "featured") return product.isFeatured;
+    return true;
   });
 
   return (
@@ -110,15 +81,11 @@ export default async function AdminProductsPage({
 
       <ProductListToolbar initialQuery={query} initialFilter={filter} />
 
-      <ProductsList products={productList} categoryList={categoryList} />
+      <ProductsList
+        products={productList}
+        categoryList={categoryList}
+        sizeSuggestions={sizeSuggestions}
+      />
     </div>
   );
-}
-
-function safeParse(metadata: string) {
-  try {
-    return JSON.parse(metadata) as { imageUrl?: string };
-  } catch {
-    return null;
-  }
 }

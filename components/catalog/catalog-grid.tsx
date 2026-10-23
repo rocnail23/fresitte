@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ShoppingBag, X } from "lucide-react";
@@ -26,6 +25,8 @@ import {
 interface CatalogGridProps {
   products: CatalogProduct[];
   categories: FilterOption[];
+  sizes?: FilterOption[];
+  selectedSizes?: string[];
   whatsappNumber?: string | null;
   pagination?: {
     currentPage: number;
@@ -50,6 +51,8 @@ interface CartItem {
 export function CatalogGrid({
   products,
   categories,
+  sizes = [],
+  selectedSizes = [],
   whatsappNumber,
   pagination,
   selectedCategory = "",
@@ -71,6 +74,49 @@ export function CatalogGrid({
   useEffect(() => {
     setPendingSearch(searchTerm);
   }, [searchTerm]);
+
+  // Sizes in the URL that no longer exist in the current scope (the user
+  // switched category/search) are dropped, so the link always reflects the
+  // filters that are actually applied.
+  const urlSizes = useMemo(
+    () =>
+      (searchParams?.getAll("size") ?? [])
+        .map((size) => size.trim().toUpperCase())
+        .filter(Boolean),
+    [searchParams],
+  );
+  const effectiveSizes = useMemo(
+    () => [...selectedSizes].sort(),
+    [selectedSizes],
+  );
+  const requestedSizes = useMemo(
+    () => [...new Set(urlSizes)].sort(),
+    [urlSizes],
+  );
+  const sizeUrlIsStale =
+    urlSizes.length > 0 &&
+    (effectiveSizes.length !== requestedSizes.length ||
+      effectiveSizes.some((size, index) => size !== requestedSizes[index]));
+
+  useEffect(() => {
+    if (!sizeUrlIsStale) return;
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.delete("size");
+    for (const size of selectedSizes) {
+      params.append("size", size);
+    }
+    const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
+    startTransition(() => {
+      router.replace(nextUrl, { scroll: false });
+    });
+  }, [
+    pathname,
+    router,
+    searchParams,
+    selectedSizes,
+    sizeUrlIsStale,
+    startTransition,
+  ]);
 
   const filteredProducts = products;
 
@@ -181,6 +227,7 @@ export function CatalogGrid({
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     params.delete("category");
     params.delete("search");
+    params.delete("size");
     params.delete("page");
     setPendingSearch("");
     const nextUrl = params.size ? `${pathname}?${params.toString()}` : pathname;
@@ -189,7 +236,8 @@ export function CatalogGrid({
     });
   };
 
-const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
+  const hasActiveFilters =
+    Boolean(selectedCategory) || Boolean(searchTerm) || selectedSizes.length > 0;
 
   const pushSearch = useCallback(
     (value: string) => {
@@ -201,6 +249,8 @@ const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
       } else {
         params.delete("search");
       }
+      // The size selection is kept when the new search scope still offers
+      // it; the server drops the ones that no longer exist in scope.
       params.delete("page");
       const nextUrl = params.size
         ? `${pathname}?${params.toString()}`
@@ -213,7 +263,13 @@ const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
   );
 
   const pushFilters = useCallback(
-    ({ category: nextCategory }: { category?: string }) => {
+    ({
+      category: nextCategory,
+      sizes: nextSizes,
+    }: {
+      category?: string;
+      sizes?: string[];
+    }) => {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
 
       if (typeof nextCategory === "string") {
@@ -221,6 +277,15 @@ const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
           params.set("category", nextCategory);
         } else {
           params.delete("category");
+        }
+        // Sizes depend on the selected category: the server drops the ones
+        // that no longer exist in the new scope.
+      }
+
+      if (Array.isArray(nextSizes)) {
+        params.delete("size");
+        for (const size of nextSizes) {
+          params.append("size", size);
         }
       }
 
@@ -239,15 +304,20 @@ const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
       {/* Inline filters: search + 3 categories always visible */}
       <InlineFilters
         categories={categories}
+        sizes={sizes}
         selectedCategory={selectedCategory}
+        selectedSizes={selectedSizes}
         search={pendingSearch}
         previewCount={3}
-        onUpdate={({ category, search }) => {
+        onUpdate={({ category, search, sizes: nextSizes }) => {
           if (typeof category === "string") {
             pushFilters({ category });
           }
           if (typeof search === "string") {
             pushSearch(search);
+          }
+          if (Array.isArray(nextSizes)) {
+            pushFilters({ sizes: nextSizes });
           }
         }}
       />
@@ -379,11 +449,12 @@ const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
                     >
                       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-muted/40 bg-muted">
                         {item.imageUrl ? (
-                          <Image
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
                             src={item.imageUrl}
                             alt={item.name}
-                            fill
-                            className="object-cover"
+                            decoding="async"
+                            className="absolute inset-0 size-full object-cover"
                           />
                         ) : null}
                       </div>

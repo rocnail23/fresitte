@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq, inArray, sql } from "drizzle-orm";
@@ -73,7 +73,6 @@ export async function createCategoryAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos crear la categoría. Revisa que el slug sea único.");
   }
 
-  revalidatePath("/admin/categories");
   updateTag("categories");
   updateTag("catalog");
   redirectWithFeedback("success", "Categoría creada correctamente");
@@ -124,7 +123,6 @@ export async function updateCategoryAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos actualizar la categoría.");
   }
 
-  revalidatePath("/admin/categories");
   updateTag("categories");
   updateTag("catalog");
   redirectWithFeedback("success", "Categoría actualizada");
@@ -145,7 +143,6 @@ export async function deleteCategoryAction(formData: FormData) {
     redirectWithFeedback("error", "No pudimos eliminar la categoría");
   }
 
-  revalidatePath("/admin/categories");
   updateTag("categories");
   updateTag("catalog");
   redirectWithFeedback("success", "Categoría eliminada");
@@ -203,9 +200,7 @@ export async function reorderCategoriesAction(payload: {
     return { ok: false as const, error: "No pudimos reordenar las categorías" };
   }
 
-  revalidatePath("/admin/categories");
   updateTag("categories");
   updateTag("catalog");
-  revalidatePath("/");
   return { ok: true as const };
 }

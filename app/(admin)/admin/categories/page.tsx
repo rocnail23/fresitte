@@ -1,42 +1,14 @@
 import Link from "next/link";
-import { asc } from "drizzle-orm";
 import { PlusIcon } from "lucide-react";
 
-import { db } from "@/lib/db";
-import {
-  categories,
-  productCategories,
-} from "@/db/schema";
+import { loadCategories } from "@/lib/categories";
 import { Button } from "@/components/ui/button";
 
 import { CategoriesList } from "@/components/admin/category/categories-list";
 import { ToastFeedback } from "@/components/admin/toast-feedback";
 
 export default async function CategoriesPage() {
-  const rows = await db.select().from(categories).orderBy(asc(categories.displayOrder));
-
-  // Read product counts per category in one query.
-  const counts = await db
-    .select({
-      categoryId: productCategories.categoryId,
-      count: productCategories.productId,
-    })
-    .from(productCategories);
-  const totals = new Map<number, number>();
-  for (const row of counts) {
-    totals.set(row.categoryId, (totals.get(row.categoryId) ?? 0) + 1);
-  }
-
-  const categoryList = rows.map((category) => ({
-    id: category.id,
-    name: category.name,
-    slug: category.slug,
-    highlightColor: category.highlightColor,
-    coverImageUrl: category.coverImageUrl,
-    displayOrder: category.displayOrder ?? 0,
-    description: category.description,
-    productCount: totals.get(category.id) ?? 0,
-  }));
+  const categoryList = await loadCategories();
 
   return (
     <div className="flex flex-col gap-6">

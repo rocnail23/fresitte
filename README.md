@@ -50,6 +50,10 @@ npm run db:generate
 npm run db:migrate
 npm run db:studio
 
+# Seeds
+npm run db:seed          # usuario admin
+npm run db:seed-sizes    # registra las tallas que usa el catálogo
+
 # Lint
 npm run lint
 ```
@@ -65,6 +69,33 @@ npm run lint
    - Llave API scoped al bucket (Access Key + Secret).
    - Opcional: Worker/custom domain para servir media → define `R2_PUBLIC_BASE_URL`.
 6. Personaliza `WHATSAPP_NUMBER` para pruebas de checkout.
+
+## Tallas (orden del filtro)
+
+Las tallas viven en la tabla `sizes`, que es el registro que el admin ordena
+en `/admin/sizes`. Ese orden es el que aparece en el filtro de tallas del
+storefront y en las etiquetas de cada producto.
+
+- `name` — la etiqueta que ve el cliente ("9-12 meses").
+- `matchKey` — la clave canónica con la que se empareja cualquier forma de
+  escribir esa talla ("3-6M", "3-6 meses" y "3-6" son la misma). Se deriva
+  del nombre y es única.
+- `displayOrder` — la posición en la lista.
+
+Las tallas de un producto se guardan como texto libre en `products.sizes`
+(CSV). Cuando se guarda un producto:
+
+1. `syncProductSizes()` (`lib/sizes.ts`) registra las tallas que aún no
+   existen en el registro, al final de la lista.
+2. Reescribe cada token con la etiqueta del registro, así el catálogo
+   muestra un solo nombre por talla.
+
+`npm run db:seed-sizes` hace lo mismo para el catálogo que ya existe: registra
+las tallas que falten y normaliza las que ya estaban escritas de otra forma.
+Es idempotente.
+
+Para cambiar el nombre de una talla desde `/admin/sizes` se actualizan en
+cascada los productos que la usan, manteniendo la misma `matchKey`.
 
 ## Subidas de imágenes (Cloudflare R2)
 

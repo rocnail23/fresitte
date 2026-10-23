@@ -23,6 +23,8 @@ interface ProductEditDrawerProps {
   onOpenChange: (open: boolean) => void;
   action: (formData: FormData) => Promise<void>;
   categoryList: CategoryOption[];
+  /** Sizes already registered, offered as suggestions in the size field. */
+  sizeSuggestions?: string[];
   initialValues: ProductFormValues;
 }
 
@@ -31,6 +33,7 @@ export function ProductEditDrawer({
   onOpenChange,
   action,
   categoryList,
+  sizeSuggestions = [],
   initialValues,
 }: ProductEditDrawerProps) {
   return (
@@ -62,6 +65,7 @@ export function ProductEditDrawer({
             mode="edit"
             action={action}
             categoryList={categoryList}
+            sizeSuggestions={sizeSuggestions}
             initialValues={initialValues}
             bare
             onCancel={() => onOpenChange(false)}

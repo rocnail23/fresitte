@@ -43,6 +43,8 @@ interface ProductFormProps {
   mode: "create" | "edit";
   action: (formData: FormData) => Promise<void>;
   categoryList: CategoryOption[];
+  /** Sizes already registered, offered as suggestions in the size field. */
+  sizeSuggestions?: string[];
   initialValues?: ProductFormValues;
   /** Optional callback invoked when the form is canceled. */
   onCancel?: () => void;
@@ -93,6 +95,7 @@ export function ProductForm({
   mode,
   action,
   categoryList,
+  sizeSuggestions = [],
   initialValues,
   onCancel,
   bare = false,
@@ -338,6 +341,8 @@ export function ProductForm({
             onChange={setSizes}
             format={formatSize}
             placeholder="2A, 3A…"
+            ariaLabel="Tallas disponibles"
+            suggestions={sizeSuggestions}
           />
         </FieldGroup>
       </section>
