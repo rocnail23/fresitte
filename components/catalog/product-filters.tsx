@@ -22,13 +22,10 @@ export interface FilterOption {
 
 export interface ProductFiltersProps {
   categories: FilterOption[];
-  sizes: FilterOption[];
   selectedCategory: string;
-  selectedSizes: string[];
   search: string;
   onUpdate: (filters: {
     category?: string;
-    sizes?: string[];
     search?: string;
   }) => void;
   isOpen?: boolean;
@@ -37,30 +34,6 @@ export interface ProductFiltersProps {
 }
 
 export type FilterSheetProps = ProductFiltersProps;
-
-function SizeChip({ size, isActive, onToggle }: {
-  size: FilterOption;
-  isActive: boolean;
-  onToggle: (value: string) => void;
-}) {
-  return (
-    <button
-      key={size.value}
-      type="button"
-      aria-pressed={isActive}
-      onClick={() => onToggle(size.value)}
-      className={cn(
-        "shrink-0 snap-start min-h-[40px] sm:min-h-[32px] rounded-full border px-4 sm:px-2.5 py-1.5 sm:py-1 text-sm font-semibold transition",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-        isActive
-          ? "border-red-500 bg-red-500/10 text-red-600"
-          : "border-muted bg-white/80 text-foreground hover:border-primary/20",
-      )}
-    >
-      {size.label}
-    </button>
-  );
-}
 
 function CategoryRow({
   categories,
@@ -119,29 +92,6 @@ function CategoryRow({
   );
 }
 
-function SizeRow({
-  sizes,
-  selectedSizes,
-  onToggle,
-}: {
-  sizes: FilterOption[];
-  selectedSizes: string[];
-  onToggle: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-1 min-w-0 gap-1.5 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {sizes.map((size) => (
-        <SizeChip
-          key={size.value}
-          size={size}
-          isActive={selectedSizes.includes(size.value)}
-          onToggle={onToggle}
-        />
-      ))}
-    </div>
-  );
-}
-
 export interface FilterSearchBarProps {
   search: string;
   onUpdate: (next: string) => void;
@@ -184,33 +134,23 @@ export function FilterSearchBar({ search, onUpdate }: FilterSearchBarProps) {
 
 export interface InlineFiltersProps {
   categories: FilterOption[];
-  sizes: FilterOption[];
   selectedCategory: string;
-  selectedSizes: string[];
   search: string;
   previewCount?: number;
   onUpdate: (filters: {
     category?: string;
-    sizes?: string[];
     search?: string;
   }) => void;
 }
 
 export function InlineFilters({
   categories,
-  sizes,
   selectedCategory,
-  selectedSizes,
   search,
   previewCount = 3,
   onUpdate,
 }: InlineFiltersProps) {
   const [moreOpen, setMoreOpen] = useState(false);
-
-  const handleToggleSize = (value: string) => {
-    const isSelected = selectedSizes[0] === value;
-    onUpdate({ sizes: isSelected ? [] : [value] });
-  };
 
   // Build the visible chips so the active option is always shown, even when
   // it lives past the previewCount slot — it replaces the last preview item
@@ -224,18 +164,7 @@ export function InlineFilters({
     return [...preview.slice(0, -1), active];
   }, [categories, previewCount, selectedCategory]);
 
-  const previewSizes = useMemo(() => {
-    const preview = sizes.slice(0, previewCount);
-    const activeSize = selectedSizes[0];
-    if (!activeSize) return preview;
-    if (preview.some((s) => s.value === activeSize)) return preview;
-    const active = sizes.find((s) => s.value === activeSize);
-    if (!active) return preview;
-    return [...preview.slice(0, -1), active];
-  }, [sizes, previewCount, selectedSizes]);
-
-  const hasOverflow =
-    categories.length > previewCount || sizes.length > previewCount;
+  const hasOverflow = categories.length > previewCount;
 
   return (
     <>
@@ -257,18 +186,6 @@ export function InlineFilters({
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Talla
-            </span>
-            <div className="min-w-0 flex-1">
-              <SizeRow
-                sizes={previewSizes}
-                selectedSizes={selectedSizes}
-                onToggle={handleToggleSize}
-              />
-            </div>
-          </div>
           {hasOverflow ? (
             <div className="flex justify-start">
               <Button
@@ -278,7 +195,7 @@ export function InlineFilters({
                 className="h-7 shrink-0 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                Más categorías y tallas
+                Más categorías
               </Button>
             </div>
           ) : null}
@@ -289,9 +206,7 @@ export function InlineFilters({
         open={moreOpen}
         onOpenChange={setMoreOpen}
         categories={categories}
-        sizes={sizes}
         selectedCategory={selectedCategory}
-        selectedSizes={selectedSizes}
         onUpdate={onUpdate}
       />
     </>
@@ -300,19 +215,12 @@ export function InlineFilters({
 
 function MoreFiltersSheetContent({
   categories,
-  sizes,
   selectedCategory,
-  selectedSizes,
   onUpdate,
 }: Pick<
   ProductFiltersProps,
-  "categories" | "sizes" | "selectedCategory" | "selectedSizes" | "onUpdate"
+  "categories" | "selectedCategory" | "onUpdate"
 >) {
-  const handleToggleSize = (value: string) => {
-    const isSelected = selectedSizes[0] === value;
-    onUpdate({ sizes: isSelected ? [] : [value] });
-  };
-
   return (
     <div className="flex flex-col gap-6 pt-4 safe-bottom">
       <div className="space-y-2">
@@ -323,14 +231,6 @@ function MoreFiltersSheetContent({
           onUpdate={(category) => onUpdate({ category })}
         />
       </div>
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-muted-foreground">Tallas</p>
-        <SizeRow
-          sizes={sizes}
-          selectedSizes={selectedSizes}
-          onToggle={handleToggleSize}
-        />
-      </div>
     </div>
   );
 }
@@ -339,18 +239,14 @@ function MoreFiltersSheet({
   open,
   onOpenChange,
   categories,
-  sizes,
   selectedCategory,
-  selectedSizes,
   onUpdate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: FilterOption[];
-  sizes: FilterOption[];
   selectedCategory: string;
-  selectedSizes: string[];
-  onUpdate: (filters: { category?: string; sizes?: string[] }) => void;
+  onUpdate: (filters: { category?: string }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [maxHeight, setMaxHeight] = useState<number | null>(null);
@@ -406,15 +302,13 @@ function MoreFiltersSheet({
           <SheetHeader className="border-b border-muted/60 pb-3">
             <SheetTitle>Todas las opciones</SheetTitle>
             <SheetDescription>
-              Explora todas las categorías y tallas
+              Explora todas las categorías
             </SheetDescription>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto">
             <MoreFiltersSheetContent
               categories={categories}
-              sizes={sizes}
               selectedCategory={selectedCategory}
-              selectedSizes={selectedSizes}
               onUpdate={onUpdate}
             />
           </div>
@@ -426,9 +320,7 @@ function MoreFiltersSheet({
 
 export function ProductFilters({
   categories,
-  sizes,
   selectedCategory,
-  selectedSizes,
   search,
   onUpdate,
 }: ProductFiltersProps) {
@@ -477,17 +369,6 @@ export function ProductFilters({
           categories={categories}
           selectedCategory={selectedCategory}
           onUpdate={(category) => onUpdate({ category })}
-        />
-      </div>
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-muted-foreground">Tallas</p>
-        <SizeRow
-          sizes={sizes}
-          selectedSizes={selectedSizes}
-          onToggle={(value) => {
-            const isSelected = selectedSizes[0] === value;
-            onUpdate({ sizes: isSelected ? [] : [value] });
-          }}
         />
       </div>
     </div>

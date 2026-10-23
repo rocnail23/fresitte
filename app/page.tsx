@@ -10,25 +10,11 @@ import type { FilterOption } from "@/components/catalog/product-filters";
 import { env } from "@/lib/env";
 import { CatalogSection } from "@/components/landing/catalog-section";
 
-const FALLBACK_SIZES = [
-  "RN",
-  "0-3m",
-  "3-6m",
-  "9-12m",
-  "12-18m",
-  "18-24m",
-  "2A",
-  "3A",
-  "4A",
-  "5A",
-];
-
 const PAGE_SIZE = 9;
 
 type StorefrontSearchParams = {
   page?: string;
   category?: string;
-  size?: string;
   search?: string;
 };
 
@@ -142,7 +128,6 @@ async function CatalogView({
   const resolvedParams = (await searchParamsPromise) ?? {};
   const requestedPage = Math.max(1, Number(resolvedParams.page ?? "1") || 1);
   const requestedCategory = resolvedParams.category?.trim() ?? "";
-  const requestedSize = resolvedParams.size?.trim() ?? "";
   const searchQuery = resolvedParams.search?.trim() ?? "";
 
   const [categoryRows, visibleProducts] = await Promise.all([
@@ -166,13 +151,6 @@ async function CatalogView({
             (link) => link.categoryId === matchedCategory.id,
           );
           if (!inCategory) return false;
-        }
-        if (requestedSize) {
-          const sizes = (product.sizes ?? "")
-            .split(",")
-            .map((entry) => entry.trim())
-            .filter(Boolean);
-          if (!sizes.includes(requestedSize)) return false;
         }
         if (searchQuery) {
           const needle = searchQuery.toLowerCase();
@@ -204,19 +182,15 @@ async function CatalogView({
     color: category.highlightColor ?? undefined,
   }));
 
-  const sizeOptions = buildSizeFilters();
-
   return (
     <CatalogSection
       products={catalogProducts}
       categories={categoryFilters}
-      sizeOptions={sizeOptions}
       totalItems={totalProducts}
       pageSize={PAGE_SIZE}
       currentPage={currentPage}
       totalPages={totalPages}
       selectedCategory={requestedCategory}
-      selectedSize={requestedSize}
       searchTerm={searchQuery}
       whatsappNumber={env.WHATSAPP_NUMBER ?? null}
     />
@@ -291,9 +265,5 @@ function safeJson(value: string) {
     console.warn("No se pudo parsear metadata", error);
     return null;
   }
-}
-
-function buildSizeFilters(): FilterOption[] {
-  return FALLBACK_SIZES.map((size) => ({ value: size, label: size }));
 }
 

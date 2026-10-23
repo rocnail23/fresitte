@@ -26,7 +26,6 @@ import {
 interface CatalogGridProps {
   products: CatalogProduct[];
   categories: FilterOption[];
-  sizeOptions: FilterOption[];
   whatsappNumber?: string | null;
   pagination?: {
     currentPage: number;
@@ -35,7 +34,6 @@ interface CatalogGridProps {
     totalItems: number;
   };
   selectedCategory?: string;
-  selectedSize?: string;
   searchTerm?: string;
 }
 
@@ -52,11 +50,9 @@ interface CartItem {
 export function CatalogGrid({
   products,
   categories,
-  sizeOptions,
   whatsappNumber,
   pagination,
   selectedCategory = "",
-  selectedSize = "",
   searchTerm = "",
 }: CatalogGridProps) {
   const router = useRouter();
@@ -66,7 +62,6 @@ export function CatalogGrid({
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setCartOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
-  const selectedSizes = selectedSize ? [selectedSize] : [];
   const [pendingSearch, setPendingSearch] = useState(searchTerm);
 
   useEffect(() => {
@@ -185,7 +180,6 @@ export function CatalogGrid({
   const handleClearFilters = () => {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     params.delete("category");
-    params.delete("size");
     params.delete("search");
     params.delete("page");
     setPendingSearch("");
@@ -195,8 +189,7 @@ export function CatalogGrid({
     });
   };
 
-const hasActiveFilters =
-    Boolean(selectedCategory) || Boolean(selectedSize) || Boolean(searchTerm);
+const hasActiveFilters = Boolean(selectedCategory) || Boolean(searchTerm);
 
   const pushSearch = useCallback(
     (value: string) => {
@@ -220,13 +213,7 @@ const hasActiveFilters =
   );
 
   const pushFilters = useCallback(
-    ({
-      category: nextCategory,
-      sizes: nextSizes,
-    }: {
-      category?: string;
-      sizes?: string[];
-    }) => {
+    ({ category: nextCategory }: { category?: string }) => {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
 
       if (typeof nextCategory === "string") {
@@ -234,15 +221,6 @@ const hasActiveFilters =
           params.set("category", nextCategory);
         } else {
           params.delete("category");
-        }
-      }
-
-      if (Array.isArray(nextSizes)) {
-        const nextSize = nextSizes[0];
-        if (nextSize) {
-          params.set("size", nextSize);
-        } else {
-          params.delete("size");
         }
       }
 
@@ -258,17 +236,15 @@ const hasActiveFilters =
 
   return (
     <>
-      {/* Inline filters: search + 3 categories + 3 sizes always visible */}
-<InlineFilters
+      {/* Inline filters: search + 3 categories always visible */}
+      <InlineFilters
         categories={categories}
-        sizes={sizeOptions}
         selectedCategory={selectedCategory}
-        selectedSizes={selectedSizes}
         search={pendingSearch}
         previewCount={3}
-        onUpdate={({ category, sizes, search }) => {
-          if (typeof category === "string" || Array.isArray(sizes)) {
-            pushFilters({ category, sizes });
+        onUpdate={({ category, search }) => {
+          if (typeof category === "string") {
+            pushFilters({ category });
           }
           if (typeof search === "string") {
             pushSearch(search);
@@ -308,7 +284,7 @@ const hasActiveFilters =
                 No encontramos coincidencias
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Ajusta los filtros o prueba con otra talla/categoría.
+                Ajusta los filtros o prueba con otra categoría.
               </p>
               <Button
                 variant="outline"
